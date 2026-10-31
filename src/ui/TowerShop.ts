@@ -548,8 +548,8 @@ export class TowerShop extends UIComponent {
         const sludgeWidth = 18;
         icon
           .rect(-sludgeWidth * scale, -5 * scale, sludgeWidth * 2 * scale, 25 * scale)
-          .fill(0x4a5a3a);
-        icon.stroke({ width: 1, color: 0x3a4a2a });
+          .fill(0x3b2f4a);
+        icon.stroke({ width: 1, color: 0x2a2038 });
         // Toxic barrels
         icon.rect(-10 * scale, 0 * scale, 8 * scale, 12 * scale).fill(0x228b22);
         icon.rect(2 * scale, 0 * scale, 8 * scale, 12 * scale).fill(0x228b22);

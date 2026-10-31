@@ -17,6 +17,17 @@ import { InputManager } from './managers/InputManager';
 import { TimeControlManager } from './managers/TimeControlManager';
 import { DebugUtils } from './utils/DebugUtils';
 
+function isDevToolsEnabled(): boolean {
+  if (import.meta.env.DEV) {
+    return true;
+  }
+  try {
+    return new URLSearchParams(window.location.search).get('dev') === '1';
+  } catch {
+    return false;
+  }
+}
+
 (async () => {
   applyUrlDevOverrides();
 
@@ -75,12 +86,16 @@ import { DebugUtils } from './utils/DebugUtils';
     updateRangeOverlay: refreshRangeOverlay,
     updateCamera: deltaMs => inputManager.updateCamera(deltaMs),
   });
-  await registerDebugConsoleAPIs(gameManager, timeControlManager);
-  registerDevApi({
-    gameManager,
-    timeControlManager,
-    pathOverlay,
-    rangeOverlay,
-    refreshPathOverlay,
-  });
+  // Cheat/debug consoles (window.dev, window.timeControl, ...): always in dev builds, and in a
+  // production build only when asked for with ?dev=1, so players cannot trivialise a win.
+  if (isDevToolsEnabled()) {
+    await registerDebugConsoleAPIs(gameManager, timeControlManager);
+    registerDevApi({
+      gameManager,
+      timeControlManager,
+      pathOverlay,
+      rangeOverlay,
+      refreshPathOverlay,
+    });
+  }
 })();

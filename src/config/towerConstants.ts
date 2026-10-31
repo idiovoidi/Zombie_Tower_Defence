@@ -75,8 +75,8 @@ const ghostDrawGrenade = (g: Graphics) => {
 };
 
 const ghostDrawSludge = (g: Graphics) => {
-  g.rect(-18, -5, 36, 25).fill(0x4a5a3a);
-  g.rect(-18, -5, 36, 25).stroke({ width: 2, color: 0x3a4a2a });
+  g.rect(-18, -5, 36, 25).fill(0x3b2f4a);
+  g.rect(-18, -5, 36, 25).stroke({ width: 2, color: 0x2a2038 });
   g.rect(-10, 0, 8, 12).fill(0x228b22);
   g.rect(2, 0, 8, 12).fill(0x228b22);
   g.circle(-6, 6, 3).fill({ color: 0x00ff00, alpha: 0.7 });
