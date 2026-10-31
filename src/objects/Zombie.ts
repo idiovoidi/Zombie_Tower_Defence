@@ -17,6 +17,13 @@ import { LateralStagger } from '../utils/WalkStagger';
 import { ZombieStats } from '../utils/ZombieStats';
 import { GameObject } from './GameObject';
 import { BurnState } from './zombies/BurnState';
+import {
+  DEFAULT_HEALTH_BAR,
+  getThreatBarSpec,
+  type HealthBarSpec,
+  healthBarColor,
+  shouldShowHealthBar,
+} from './zombies/HealthBarSpec';
 import { KnockbackState } from './zombies/KnockbackState';
 import { getKnockbackResistance, getSwayAmplitude } from './zombies/ZombieTypeTraits';
 
@@ -29,8 +36,11 @@ export class Zombie extends GameObject {
   private currentWaypointIndex = 0;
   private waypoints: { x: number; y: number }[] = [];
   private healthBar: Container | null = null;
-  private healthBarBg!: Graphics;
   private healthBarFg!: Graphics;
+  private healthBarSpec: HealthBarSpec = DEFAULT_HEALTH_BAR;
+  /** True when this type shows a bar by default (threat types); others need the debug flag. */
+  private healthBarByDefault = false;
+  private lastBarPercent = -1;
   private healthComponent!: HealthComponent;
   private transformComponent!: TransformComponent;
   private limbState!: LimbState;
@@ -105,6 +115,7 @@ export class Zombie extends GameObject {
     if (this.healthBar) {
       this.healthBar.visible = false;
     }
+    this.lastBarPercent = -1;
 
     // Reset renderer
     if (this.renderer) {
@@ -212,17 +223,23 @@ export class Zombie extends GameObject {
       (this.renderer as BaseZombieRenderer).setZombieType(this.type);
     }
 
-    // Create health bar
-    this.healthBarBg = new Graphics();
-    this.healthBarBg.rect(-15, -25, 30, 5).fill(0xff0000);
+    // Health bar: shown only once damaged, and by default only on high-HP threat types
+    const threatSpec = getThreatBarSpec(this.type);
+    this.healthBarByDefault = threatSpec !== null;
+    this.healthBarSpec = threatSpec ?? DEFAULT_HEALTH_BAR;
+    const { width, height, offsetY } = this.healthBarSpec;
+
+    const barBg = new Graphics();
+    barBg
+      .rect(-width / 2 - 1, offsetY - 1, width + 2, height + 2)
+      .fill({ color: 0x000000, alpha: 0.75 });
 
     this.healthBarFg = new Graphics();
-    this.healthBarFg.rect(-15, -25, 30, 5).fill(0x00ff00);
 
     this.healthBar = new Container();
-    this.healthBar.addChild(this.healthBarBg);
+    this.healthBar.addChild(barBg);
     this.healthBar.addChild(this.healthBarFg);
-    this.healthBar.visible = false; // Hide by default
+    this.healthBar.visible = false; // Hidden until damaged
     this.addChild(this.healthBar);
   }
 
@@ -255,15 +272,15 @@ export class Zombie extends GameObject {
       this.renderer.render(this, state);
     }
 
-    // Update health bar (dev flag — health is also readable from zombie colour)
+    // Update health bar (threat types by default; debug flag shows it on every type)
     const healthComponent = this.getComponent<HealthComponent>('Health');
     if (healthComponent && this.healthBar) {
-      if (!DebugConstants.SHOW_ZOMBIE_HEALTH_BARS) {
-        this.healthBar.visible = false;
-      } else {
-        const healthPercentage = healthComponent.getHealthPercentage();
-        this.healthBarFg.width = 30 * (healthPercentage / 100);
-        this.healthBar.visible = healthPercentage < 100;
+      const percent = healthComponent.getHealthPercentage();
+      const enabled = this.healthBarByDefault || DebugConstants.SHOW_ZOMBIE_HEALTH_BARS;
+      const show = shouldShowHealthBar(percent, enabled);
+      this.healthBar.visible = show;
+      if (show) {
+        this.redrawHealthBar(percent);
       }
     }
 
@@ -503,6 +520,20 @@ export class Zombie extends GameObject {
   }
 
   // Get visual size for corpse creation
+  /** Redraw the fill only when the displayed percentage actually changes. */
+  private redrawHealthBar(percent: number): void {
+    const rounded = Math.round(percent);
+    if (rounded === this.lastBarPercent) {
+      return;
+    }
+    this.lastBarPercent = rounded;
+    const { width, height, offsetY } = this.healthBarSpec;
+    this.healthBarFg
+      .clear()
+      .rect(-width / 2, offsetY, (width * rounded) / 100, height)
+      .fill(healthBarColor(rounded));
+  }
+
   private getVisualSize(): number {
     switch (this.type) {
       case GameConfig.ZOMBIE_TYPES.BOSS:

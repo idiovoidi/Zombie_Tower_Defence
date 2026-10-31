@@ -59,7 +59,7 @@ export const DebugConstants = {
 
   // Visual Debug
   SHOW_TOWER_RANGES: false, // Always show tower ranges
-  SHOW_ZOMBIE_HEALTH_BARS: false, // Health readable via zombie colour; enable for debug
+  SHOW_ZOMBIE_HEALTH_BARS: false, // Damaged threat types (Tank/Armored/Mechanical/Boss/NecroTank) always show a bar; true shows it on every type
   SHOW_WAYPOINTS: false, // Show path waypoints
   SHOW_COLLISION_BOXES: false, // Show collision boundaries
 
