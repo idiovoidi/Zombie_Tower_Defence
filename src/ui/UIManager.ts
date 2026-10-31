@@ -20,6 +20,8 @@ const UI_STATE_CONFIG: StateVisibilityConfig = {
     towerInfoPanel: false,
     statsPanel: false,
     gameOverScreen: false,
+    victoryScreen: false,
+    timeControlUI: false,
   },
   [GameConfig.GAME_STATES.LEVEL_SELECT]: {
     mainMenu: false,
@@ -31,6 +33,8 @@ const UI_STATE_CONFIG: StateVisibilityConfig = {
     towerInfoPanel: false,
     statsPanel: false,
     gameOverScreen: false,
+    victoryScreen: false,
+    timeControlUI: false,
   },
   [GameConfig.GAME_STATES.MAP_EDITOR]: {
     mainMenu: false,
@@ -42,6 +46,8 @@ const UI_STATE_CONFIG: StateVisibilityConfig = {
     towerInfoPanel: false,
     statsPanel: false,
     gameOverScreen: false,
+    victoryScreen: false,
+    timeControlUI: false,
   },
   [GameConfig.GAME_STATES.PLAYING]: {
     mainMenu: false,
@@ -53,6 +59,7 @@ const UI_STATE_CONFIG: StateVisibilityConfig = {
     towerInfoPanel: false,
     statsPanel: true,
     gameOverScreen: false,
+    victoryScreen: false,
     timeControlUI: true,
   },
   [GameConfig.GAME_STATES.WAVE_COMPLETE]: {
@@ -65,6 +72,7 @@ const UI_STATE_CONFIG: StateVisibilityConfig = {
     towerInfoPanel: false,
     statsPanel: true,
     gameOverScreen: false,
+    victoryScreen: false,
     timeControlUI: true,
   },
   [GameConfig.GAME_STATES.PAUSED]: {
@@ -77,6 +85,8 @@ const UI_STATE_CONFIG: StateVisibilityConfig = {
     towerInfoPanel: false,
     statsPanel: false,
     gameOverScreen: false,
+    victoryScreen: false,
+    timeControlUI: true,
   },
   [GameConfig.GAME_STATES.GAME_OVER]: {
     mainMenu: false,
@@ -88,6 +98,8 @@ const UI_STATE_CONFIG: StateVisibilityConfig = {
     towerInfoPanel: false,
     statsPanel: false,
     gameOverScreen: true,
+    victoryScreen: false,
+    timeControlUI: false,
   },
   [GameConfig.GAME_STATES.VICTORY]: {
     mainMenu: false,
@@ -99,6 +111,8 @@ const UI_STATE_CONFIG: StateVisibilityConfig = {
     towerInfoPanel: false,
     statsPanel: false,
     gameOverScreen: false,
+    victoryScreen: true,
+    timeControlUI: false,
   },
 };
 

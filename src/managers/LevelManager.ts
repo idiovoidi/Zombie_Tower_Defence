@@ -1,4 +1,5 @@
 import { DebugConstants } from '../config/debugConstants';
+import { CampaignProgress } from './CampaignProgress';
 import type { MapManager } from './MapManager';
 
 export interface LevelData {
@@ -9,6 +10,8 @@ export interface LevelData {
   difficulty: 'Easy' | 'Normal' | 'Hard' | 'Nightmare';
   startingMoney: number;
   startingLives: number;
+  /** Waves to clear for victory. Omit for an endless level. */
+  totalWaves?: number;
   resourceModifiers: {
     wood: number;
     metal: number;
@@ -25,12 +28,14 @@ export class LevelManager {
   private currentLevel: string;
   private unlockedLevels: Set<string>;
   private mapManager: MapManager;
+  private progress: CampaignProgress;
 
-  constructor(mapManager: MapManager) {
+  constructor(mapManager: MapManager, progress: CampaignProgress = new CampaignProgress()) {
     this.levels = new Map<string, LevelData>();
     this.currentLevel = '';
     this.unlockedLevels = new Set<string>();
     this.mapManager = mapManager;
+    this.progress = progress;
     this.initializeLevels();
   }
 
@@ -44,6 +49,7 @@ export class LevelManager {
       difficulty: 'Easy',
       startingMoney: 1000,
       startingLives: 100,
+      totalWaves: 10,
       resourceModifiers: { wood: 1.0, metal: 1.0, energy: 1.0 },
     });
 
@@ -55,6 +61,7 @@ export class LevelManager {
       difficulty: 'Normal',
       startingMoney: 800,
       startingLives: 80,
+      totalWaves: 12,
       resourceModifiers: { wood: 1.5, metal: 0.8, energy: 1.0 },
       unlockConditions: { previousLevel: 'level1' },
     });
@@ -67,6 +74,7 @@ export class LevelManager {
       difficulty: 'Hard',
       startingMoney: 600,
       startingLives: 60,
+      totalWaves: 15,
       resourceModifiers: { wood: 0.8, metal: 1.5, energy: 1.2 },
       unlockConditions: { previousLevel: 'level2' },
     });
@@ -79,6 +87,7 @@ export class LevelManager {
       difficulty: 'Nightmare',
       startingMoney: 500,
       startingLives: 50,
+      totalWaves: 18,
       resourceModifiers: { wood: 0.6, metal: 1.8, energy: 1.5 },
       unlockConditions: { previousLevel: 'level3' },
     });
@@ -91,6 +100,7 @@ export class LevelManager {
       difficulty: 'Nightmare',
       startingMoney: 400,
       startingLives: 40,
+      totalWaves: 20,
       resourceModifiers: { wood: 2.0, metal: 0.5, energy: 1.0 },
       unlockConditions: { previousLevel: 'level4' },
     });
@@ -115,12 +125,18 @@ export class LevelManager {
       difficulty: 'Normal',
       startingMoney: 900,
       startingLives: 80,
+      totalWaves: 15,
       resourceModifiers: { wood: 1.0, metal: 1.0, energy: 1.0 },
       unlockConditions: { previousLevel: 'level1' },
     });
 
-    // Unlock the first level by default
+    // Unlock the first level by default, plus anything earned in earlier sessions
     this.unlockedLevels.add('level1');
+    for (const id of this.progress.getUnlocked()) {
+      if (this.levels.has(id)) {
+        this.unlockedLevels.add(id);
+      }
+    }
 
     if (DebugConstants.ENABLED && DebugConstants.UNLOCK_ALL_LEVELS) {
       for (const id of this.levels.keys()) {
@@ -170,6 +186,11 @@ export class LevelManager {
     return Array.from(this.levels.values()).filter(level => this.unlockedLevels.has(level.id));
   }
 
+  /** Every built-in campaign level, locked or not (for level-select display). */
+  public getAllCampaignLevels(): LevelData[] {
+    return Array.from(this.levels.values()).filter(level => !level.id.startsWith('custom_'));
+  }
+
   /** Built-in campaign levels only (excludes custom_* ids). */
   public getCampaignLevels(): LevelData[] {
     return this.getAvailableLevels().filter(level => !level.id.startsWith('custom_'));
@@ -187,6 +208,44 @@ export class LevelManager {
       }
     }
     return undefined;
+  }
+
+  /**
+   * Record a victory: marks the level completed and unlocks every level that lists it as
+   * its `previousLevel`. Returns the ids that were newly unlocked.
+   */
+  public markCompleted(levelId: string): string[] {
+    if (!this.levels.has(levelId)) {
+      return [];
+    }
+    this.progress.markCompleted(levelId);
+
+    const newlyUnlocked: string[] = [];
+    for (const level of this.levels.values()) {
+      if (level.unlockConditions?.previousLevel === levelId && !this.unlockedLevels.has(level.id)) {
+        this.unlockedLevels.add(level.id);
+        this.progress.addUnlocked(level.id);
+        newlyUnlocked.push(level.id);
+      }
+    }
+    return newlyUnlocked;
+  }
+
+  public isLevelCompleted(levelId: string): boolean {
+    return this.progress.isCompleted(levelId);
+  }
+
+  public getBestWave(levelId: string): number {
+    return this.progress.getBestWave(levelId);
+  }
+
+  /** Remember the furthest wave reached on a level. Returns true for a new best. */
+  public recordBestWave(levelId: string, wave: number): boolean {
+    return this.progress.recordBestWave(levelId, wave);
+  }
+
+  public getLevel(levelId: string): LevelData | undefined {
+    return this.levels.get(levelId);
   }
 
   public unlockLevel(levelId: string): void {

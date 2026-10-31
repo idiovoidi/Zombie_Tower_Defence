@@ -2,6 +2,7 @@ import { Container, Text } from 'pixi.js';
 import { GameConfig } from '../config/gameConfig';
 import { UI_COLORS, UI_FONTS, UI_LAYOUT } from '../config/uiTheme';
 import type { LevelData } from '../managers/LevelManager';
+import { describeCampaignLevel, type LevelProgressInfo } from './levelCardInfo';
 import { MetalUI } from './theme/MetalUI';
 import { UIComponent } from './UIComponent';
 
@@ -71,7 +72,7 @@ export class LevelSelectMenu extends UIComponent {
     this.addChild(footer);
   }
 
-  public updateLevels(levels: LevelData[]): void {
+  public updateLevels(levels: LevelData[], progress?: LevelProgressInfo): void {
     for (const card of this.levelCards) {
       card.destroy({ children: true });
     }
@@ -87,15 +88,20 @@ export class LevelSelectMenu extends UIComponent {
       : 'CAMPAIGN SECTORS';
 
     campaign.forEach((level, index) => {
-      this.createLevelCard(level, index, false);
+      this.createLevelCard(level, index, false, progress);
     });
 
     custom.forEach((level, index) => {
-      this.createLevelCard(level, campaign.length + index, true);
+      this.createLevelCard(level, campaign.length + index, true, progress);
     });
   }
 
-  private createLevelCard(level: LevelData, index: number, isCustom: boolean): void {
+  private createLevelCard(
+    level: LevelData,
+    index: number,
+    isCustom: boolean,
+    progress?: LevelProgressInfo
+  ): void {
     const cardW = UI_LAYOUT.LEVEL_CARD_WIDTH;
     const cardH = UI_LAYOUT.LEVEL_CARD_HEIGHT;
     const cols = 4;
@@ -113,16 +119,25 @@ export class LevelSelectMenu extends UIComponent {
     const accent = isCustom ? UI_COLORS.RANGE : UI_COLORS.READY_DIM;
     const subtitle = isCustom
       ? `${level.difficulty} · CUSTOM`
-      : level.difficulty.toUpperCase();
+      : describeCampaignLevel(level, progress);
 
+    const locked = progress?.isUnlocked ? !progress.isUnlocked(level.id) : false;
     const card = MetalUI.createSelectCard(
       cardW,
       cardH,
       level.name,
       subtitle,
-      accent,
-      () => this.onLevelSelected(level.id)
+      locked ? UI_COLORS.TEXT_MUTED : accent,
+      () => {
+        if (!locked) {
+          this.onLevelSelected(level.id);
+        }
+      }
     );
+    if (locked) {
+      card.alpha = 0.45;
+      card.cursor = 'not-allowed';
+    }
     card.position.set(x, y);
     this.cardsLayer.addChild(card);
     this.levelCards.push(card);

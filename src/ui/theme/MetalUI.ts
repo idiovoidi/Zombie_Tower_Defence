@@ -498,6 +498,7 @@ export class MetalUI {
         fontFamily: UI_FONTS.MONO,
         fontSize: 11,
         fill: UI_COLORS.TEXT_DIM,
+        align: 'center',
       },
     });
     subText.anchor.set(0.5, 0.5);

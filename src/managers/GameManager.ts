@@ -421,6 +421,11 @@ export class GameManager {
     const finalScore = this.getWave() * 1000 + this.getMoney();
     this.score = finalScore;
 
+    const level = this.levelManager.getCurrentLevel();
+    if (level) {
+      this.levelManager.recordBestWave(level.id, this.getWave());
+    }
+
     // Emit game over event
     this.eventBus.emit(GameEvents.GAME_OVER, { score: finalScore });
 
@@ -457,9 +462,29 @@ export class GameManager {
   }
 
   public victory(): void {
+    if (this.currentState === GameConfig.GAME_STATES.VICTORY) {
+      return;
+    }
     this.currentState = GameConfig.GAME_STATES.VICTORY;
 
-    this.eventBus.emit(GameEvents.GAME_VICTORY);
+    const level = this.levelManager.getCurrentLevel();
+    const wave = this.getWave();
+    const finalScore = wave * 1000 + this.getMoney() + this.lives * 10;
+    this.score = finalScore;
+
+    let unlockedLevelIds: string[] = [];
+    if (level) {
+      unlockedLevelIds = this.levelManager.markCompleted(level.id);
+      this.levelManager.recordBestWave(level.id, wave);
+    }
+
+    this.eventBus.emit(GameEvents.GAME_VICTORY, {
+      levelId: level?.id ?? '',
+      wave,
+      score: finalScore,
+      livesRemaining: this.lives,
+      unlockedLevelIds,
+    });
 
     if (this.analyticsState.isBalanceTrackingEnabled()) {
       this.analyticsState.getBalanceTrackingManager().performEndGameAnalysis();
@@ -770,6 +795,15 @@ export class GameManager {
       zombiesSpawned: totalZombiesSpawned,
       livesLost: livesLostThisWave,
     });
+
+    // Clearing the level's final wave wins it (levels without totalWaves are endless)
+    const level = this.levelManager.getCurrentLevel();
+    if (level) {
+      this.levelManager.recordBestWave(level.id, wave);
+      if (level.totalWaves !== undefined && wave >= level.totalWaves) {
+        this.victory();
+      }
+    }
   }
 
   public startNextWave(): void {

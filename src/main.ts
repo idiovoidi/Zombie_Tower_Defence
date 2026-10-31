@@ -64,6 +64,9 @@ import { DebugUtils } from './utils/DebugUtils';
     setupCampClickCallback(gameManager, ui.campUpgradePanel);
     syncGameHud(gameManager, ui);
     refreshPathOverlay();
+  } else {
+    // Apply the main-menu visibility set (hides HUD, shop, level select, etc.)
+    ui.uiManager.setState(GameConfig.GAME_STATES.MAIN_MENU);
   }
 
   startGameLoop(app, gameManager, timeControlManager, ui, pixelArtRenderer, {

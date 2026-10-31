@@ -10,6 +10,7 @@ import { BottomBar } from '../ui/BottomBar';
 import { CampUpgradePanel } from '../ui/CampUpgradePanel';
 import { DebugInfoPanel } from '../ui/DebugInfoPanel';
 import { GameOverScreen } from '../ui/GameOverScreen';
+import { VictoryScreen } from '../ui/VictoryScreen';
 import { LevelSelectMenu } from '../ui/LevelSelectMenu';
 import { MainMenu } from '../ui/MainMenu';
 import { MapEditorScreen } from '../ui/MapEditorScreen';
@@ -32,6 +33,7 @@ export interface UIContext {
   debugTestUIManager: DebugTestUIManager;
   timeControlUI: TimeControlUI;
   gameOverScreen: GameOverScreen;
+  victoryScreen: VictoryScreen;
   mainMenu: MainMenu;
   levelSelectMenu: LevelSelectMenu;
   mapEditorScreen: MapEditorScreen;
@@ -67,6 +69,9 @@ export function createUI(
 
   const gameOverScreen = new GameOverScreen();
   uiManager.registerComponent('gameOverScreen', gameOverScreen);
+
+  const victoryScreen = new VictoryScreen();
+  uiManager.registerComponent('victoryScreen', victoryScreen);
 
   const towerManager = gameManager.getTowerManager();
   const towerShop = new TowerShop(towerManager);
@@ -154,6 +159,19 @@ export function createUI(
     uiManager.setState(GameConfig.GAME_STATES.GAME_OVER);
   });
 
+  eventBus.on(GameEvents.GAME_VICTORY, data => {
+    const levelManager = gameManager.getLevelManager();
+    victoryScreen.showVictory({
+      score: data.score,
+      wave: data.wave,
+      livesRemaining: data.livesRemaining,
+      unlockedLevelNames: data.unlockedLevelIds
+        .map(id => levelManager.getLevel(id)?.name)
+        .filter((name): name is string => name !== undefined),
+    });
+    uiManager.setState(GameConfig.GAME_STATES.VICTORY);
+  });
+
   // Event handlers
   let hudUi: UIContext | null = null;
 
@@ -162,7 +180,16 @@ export function createUI(
       mapManager: gameManager.getMapManager(),
       levelManager: gameManager.getLevelManager(),
     });
-    levelSelectMenu.updateLevels(gameManager.getAvailableLevels());
+    const levelManager = gameManager.getLevelManager();
+    // Campaign sectors always listed (locked ones dimmed); custom maps only once saved
+    levelSelectMenu.updateLevels(
+      [...levelManager.getAllCampaignLevels(), ...levelManager.getCustomLevels()],
+      {
+        isCompleted: id => levelManager.isLevelCompleted(id),
+        bestWave: id => levelManager.getBestWave(id),
+        isUnlocked: id => levelManager.isLevelUnlocked(id),
+      }
+    );
   };
 
   const pushHudAfterPlayStart = (): void => {
@@ -250,6 +277,17 @@ export function createUI(
     uiManager.setState(GameConfig.GAME_STATES.MAIN_MENU);
   });
 
+  victoryScreen.setLevelSelectCallback(() => {
+    DebugUtils.debug('Returning to level select from victory');
+    refreshLevelSelect();
+    uiManager.setState(GameConfig.GAME_STATES.LEVEL_SELECT);
+  });
+
+  victoryScreen.setMainMenuCallback(() => {
+    DebugUtils.debug('Returning to main menu from victory');
+    uiManager.setState(GameConfig.GAME_STATES.MAIN_MENU);
+  });
+
   // Next wave callback (BottomBar owns the button)
   bottomBar.setNextWaveCallback(createNextWaveCallback(bottomBar, gameManager));
 
@@ -312,6 +350,7 @@ export function createUI(
     debugTestUIManager,
     timeControlUI,
     gameOverScreen,
+    victoryScreen,
     mainMenu,
     levelSelectMenu,
     mapEditorScreen,
