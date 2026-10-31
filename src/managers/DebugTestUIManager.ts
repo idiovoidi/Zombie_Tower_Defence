@@ -101,11 +101,8 @@ export class DebugTestUIManager {
     this.statsPanel = new StatsPanel(this.gameManager);
     this.app.stage.addChild(this.statsPanel);
 
-    if (DebugConstants.ENABLED) {
-      this.statsPanel.show();
-    } else {
-      this.statsPanel.hide();
-    }
+    // Starts hidden: it overlays the shop. Open it from the debug panel's Stats button.
+    this.statsPanel.hide();
   }
 
   private createAIControlPanel(): void {
