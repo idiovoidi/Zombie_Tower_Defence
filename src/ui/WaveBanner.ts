@@ -23,7 +23,8 @@ const TONE_COLORS = {
  */
 export class WaveBanner extends UIComponent {
   private bar: Container | null = null;
-  private elapsed = 0;
+  /** performance.now() when the banner appeared; real time, so pausing the game does not freeze it. */
+  private startedAt = 0;
   private holdSec = 2;
 
   constructor() {
@@ -51,7 +52,7 @@ export class WaveBanner extends UIComponent {
 
     // Elite warnings linger so they are not missed
     this.holdSec = announcement.tone === 'elite' ? 3 : 2;
-    this.elapsed = 0;
+    this.startedAt = performance.now();
     this.visible = true;
     this.applyPose();
   }
@@ -59,19 +60,18 @@ export class WaveBanner extends UIComponent {
   /** Hide immediately (game over, victory, leaving the level). */
   public dismiss(): void {
     this.visible = false;
-    this.elapsed = 0;
   }
 
-  public update(deltaTime: number): void {
+  /** Driven by wall-clock time (the UI loop's delta is scaled by game speed and is 0 while paused). */
+  public update(_deltaTime: number): void {
     if (!this.visible) {
       return;
     }
-    this.elapsed += deltaTime;
     this.applyPose();
   }
 
   private applyPose(): void {
-    const pose = bannerPose(this.elapsed, this.holdSec);
+    const pose = bannerPose((performance.now() - this.startedAt) / 1000, this.holdSec);
     if (pose.done) {
       this.visible = false;
       return;
