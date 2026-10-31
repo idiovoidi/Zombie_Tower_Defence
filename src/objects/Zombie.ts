@@ -16,6 +16,9 @@ import type { IZombieRenderer, ZombieRenderState } from '../renderers/zombies/Zo
 import { LateralStagger } from '../utils/WalkStagger';
 import { ZombieStats } from '../utils/ZombieStats';
 import { GameObject } from './GameObject';
+import { BurnState } from './zombies/BurnState';
+import { KnockbackState } from './zombies/KnockbackState';
+import { getKnockbackResistance, getSwayAmplitude } from './zombies/ZombieTypeTraits';
 
 export class Zombie extends GameObject {
   private type: string;
@@ -43,18 +46,8 @@ export class Zombie extends GameObject {
   private isDying = false; // Track if death animation is in progress
   private deathAnimationComplete = false; // Track if animation finished
 
-  // Knockback properties
-  private knockbackDistance = 0; // Remaining knockback distance to travel
-  private knockbackDirection = { x: 0, y: 0 }; // Direction of knockback
-  private knockbackSpeed = 200; // Pixels per second for knockback movement
-  private isBeingKnockedBack = false; // Track if currently in knockback state
-
-  // Burn/fire properties
-  private fireExposureTime = 0; // Time spent in fire (ms) - resets when leaving fire
-  private isBurning = false; // Whether zombie is currently ignited
-  private burnDurationRemaining = 0; // Remaining burn time (ms)
-  private burnDamagePerSecond = 15; // Base burn DPS (~45 over 3s)
-  private wasInFireLastFrame = false; // Track fire exposure for reset logic
+  private knockback = new KnockbackState();
+  private burn = new BurnState();
 
   constructor(type: string, x: number, y: number, wave: number) {
     super();
@@ -91,8 +84,7 @@ export class Zombie extends GameObject {
     this.lastDamageSourcePosition = null;
     this.isSlowed = false;
     this.currentSlowPercent = 0;
-    this.isBeingKnockedBack = false;
-    this.knockbackDistance = 0;
+    this.knockback.reset();
     this.visible = true;
     this.alpha = 1;
     this.scale.set(1);
@@ -120,10 +112,7 @@ export class Zombie extends GameObject {
     }
 
     // Reset burn state
-    this.fireExposureTime = 0;
-    this.isBurning = false;
-    this.burnDurationRemaining = 0;
-    this.wasInFireLastFrame = false;
+    this.burn.reset();
   }
 
   private initializeHealth(wave: number): void {
@@ -286,10 +275,7 @@ export class Zombie extends GameObject {
 
     // Reset fire exposure tracking if not in fire this frame
     // (This will be set to true by the fire pool system if zombie is in fire)
-    if (!this.wasInFireLastFrame && !this.isBurning) {
-      this.fireExposureTime = 0;
-    }
-    this.wasInFireLastFrame = false;
+    this.burn.endFrame();
   }
 
   private getRenderState(): ZombieRenderState {
@@ -319,7 +305,7 @@ export class Zombie extends GameObject {
     }
 
     // Handle knockback movement first (takes priority over normal movement)
-    if (this.isBeingKnockedBack && this.knockbackDistance > 0) {
+    if (this.knockback.active) {
       this.updateKnockback(deltaTime);
       return;
     }
@@ -347,7 +333,7 @@ export class Zombie extends GameObject {
 
     // Irregular limp lean (eased random targets) instead of a sine weave
     const dt = deltaTime / 1000;
-    const staggerLean = this.lateralStagger.update(dt, this.getSwayAmplitude());
+    const staggerLean = this.lateralStagger.update(dt, getSwayAmplitude(this.type));
 
     // Lateral offset perpendicular to movement direction
     const perpX = -normalizedDy;
@@ -368,16 +354,14 @@ export class Zombie extends GameObject {
    * @returns True if knockback was applied, false if zombie resists knockback
    */
   public applyKnockback(force: number, sourceX: number, sourceY: number): boolean {
-    // Calculate knockback resistance based on zombie type
-    const resistance = this.getKnockbackResistance();
-    const actualForce = force * (1 - resistance);
+    const actualForce = force * (1 - getKnockbackResistance(this.type));
 
     // If resistance completely nullifies knockback, don't apply
     if (actualForce <= 0) {
       return false;
     }
 
-    // Calculate knockback direction (away from source, along path)
+    // Direction: away from source
     const dx = this.position.x - sourceX;
     const dy = this.position.y - sourceY;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -386,63 +370,17 @@ export class Zombie extends GameObject {
       return false;
     }
 
-    // Normalize direction
-    this.knockbackDirection.x = dx / distance;
-    this.knockbackDirection.y = dy / distance;
-    this.knockbackDistance = actualForce;
-    this.isBeingKnockedBack = true;
-
+    this.knockback.start(dx / distance, dy / distance, actualForce);
     return true;
-  }
-
-  /**
-   * Get knockback resistance based on zombie type
-   * Tank and Armored zombies resist knockback, small zombies are vulnerable
-   */
-  private getKnockbackResistance(): number {
-    switch (this.type) {
-      case GameConfig.ZOMBIE_TYPES.BOSS:
-        return 0.97; // Nearly immovable
-      case GameConfig.ZOMBIE_TYPES.NECRO_TANK:
-        return 0.95; // Bone-plated bulk
-      case GameConfig.ZOMBIE_TYPES.TANK:
-        return 0.9; // 90% resistant (hard to knock back)
-      case GameConfig.ZOMBIE_TYPES.ARMORED:
-        return 0.7; // 70% resistant
-      case GameConfig.ZOMBIE_TYPES.MECHANICAL:
-        return 0.6; // 60% resistant
-      case GameConfig.ZOMBIE_TYPES.STEALTH:
-        return 0.3; // 30% resistant
-      case GameConfig.ZOMBIE_TYPES.FAST:
-        return 0.2; // 20% resistant
-      case GameConfig.ZOMBIE_TYPES.SWARM:
-        return 0.1; // 10% resistant (very vulnerable)
-      default:
-        return 0.3; // 30% resistant (early game vulnerable to knockback)
-    }
   }
 
   /**
    * Update knockback movement
    */
   private updateKnockback(deltaTime: number): void {
-    const moveDistance = this.knockbackSpeed * (deltaTime / 1000);
-    const actualMove = Math.min(moveDistance, this.knockbackDistance);
-
-    // Apply knockback movement
-    this.position.x += this.knockbackDirection.x * actualMove;
-    this.position.y += this.knockbackDirection.y * actualMove;
-
-    // Update remaining knockback distance
-    this.knockbackDistance -= actualMove;
-
-    // End knockback when distance is depleted
-    if (this.knockbackDistance <= 0) {
-      this.isBeingKnockedBack = false;
-      this.knockbackDistance = 0;
-    }
-
-    // Update transform component
+    const move = this.knockback.step(deltaTime);
+    this.position.x += move.x;
+    this.position.y += move.y;
     this.transformComponent.setPosition(this.position.x, this.position.y);
   }
 
@@ -450,33 +388,7 @@ export class Zombie extends GameObject {
    * Check if zombie is currently being knocked back
    */
   public getIsBeingKnockedBack(): boolean {
-    return this.isBeingKnockedBack;
-  }
-
-  // Max lateral stagger lean (px/s) by zombie type
-  private getSwayAmplitude(): number {
-    switch (this.type) {
-      case GameConfig.ZOMBIE_TYPES.BASIC:
-        return 8; // Subtle shamble
-      case GameConfig.ZOMBIE_TYPES.FAST:
-        return 5; // Quick, darting movement
-      case GameConfig.ZOMBIE_TYPES.TANK:
-        return 12; // Heavy limp lean
-      case GameConfig.ZOMBIE_TYPES.ARMORED:
-        return 7; // Heavy armored shamble
-      case GameConfig.ZOMBIE_TYPES.SWARM:
-        return 10; // Erratic stagger
-      case GameConfig.ZOMBIE_TYPES.STEALTH:
-        return 6; // Uneven, unpredictable
-      case GameConfig.ZOMBIE_TYPES.MECHANICAL:
-        return 3; // Minimal drift
-      case GameConfig.ZOMBIE_TYPES.BOSS:
-        return 15; // Massive lumbering limp
-      case GameConfig.ZOMBIE_TYPES.NECRO_TANK:
-        return 14; // Heavy armored stomp
-      default:
-        return 8;
-    }
+    return this.knockback.active;
   }
 
   // Show damage indicator when taking damage
@@ -708,44 +620,9 @@ export class Zombie extends GameObject {
    * After 1 second of continuous exposure, zombie gets ignited
    */
   public updateFireExposure(deltaTime: number): void {
-    this.wasInFireLastFrame = true;
-
-    // If already burning, don't accumulate more exposure time
-    // Instead, extend burn duration slightly (refresh the fire)
-    if (this.isBurning) {
-      // Refresh burn duration up to max (add 0.5s per frame in fire, cap at 3s)
-      const maxBurnDuration = 3000; // 3 seconds
-      this.burnDurationRemaining = Math.min(
-        this.burnDurationRemaining + deltaTime * 0.5,
-        maxBurnDuration
-      );
-      return;
-    }
-
-    // Accumulate fire exposure time
-    this.fireExposureTime += deltaTime;
-
-    // Ignite after 1 second of continuous fire exposure
-    const igniteTime = 1000; // 1 second
-    if (this.fireExposureTime >= igniteTime) {
-      this.applyIgnition();
-    }
-  }
-
-  /**
-   * Apply ignition - set zombie on fire for 3 seconds
-   */
-  private applyIgnition(): void {
-    if (this.isBurning || this.isDying) {
-      return;
-    }
-
-    this.isBurning = true;
-    this.burnDurationRemaining = 3000; // 3 seconds of burn damage
-
-    // Visual feedback via renderer
-    if (this.renderer) {
-      this.renderer.showBurningEffect?.();
+    if (this.burn.addExposure(deltaTime, !this.isDying)) {
+      // Visual feedback via renderer
+      this.renderer?.showBurningEffect?.();
     }
   }
 
@@ -753,26 +630,14 @@ export class Zombie extends GameObject {
    * Update burn state - apply damage and manage burn duration
    */
   private updateBurn(deltaTime: number): void {
-    if (!this.isBurning || this.isDying) {
+    if (!this.burn.isBurning || this.isDying) {
       return;
     }
 
-    // Calculate damage for this frame
-    const damageThisFrame = (this.burnDamagePerSecond * deltaTime) / 1000;
-    this.takeDamage(damageThisFrame, 'Flame');
+    this.takeDamage(this.burn.damageFor(deltaTime), 'Flame');
 
-    // Reduce burn duration
-    this.burnDurationRemaining -= deltaTime;
-
-    // Stop burning when duration expires
-    if (this.burnDurationRemaining <= 0) {
-      this.isBurning = false;
-      this.burnDurationRemaining = 0;
-
-      // Stop visual effect via renderer
-      if (this.renderer) {
-        this.renderer.stopBurningEffect?.();
-      }
+    if (this.burn.advance(deltaTime)) {
+      this.renderer?.stopBurningEffect?.();
     }
   }
 
@@ -780,23 +645,20 @@ export class Zombie extends GameObject {
    * Check if zombie is currently burning
    */
   public getIsBurning(): boolean {
-    return this.isBurning;
+    return this.burn.isBurning;
   }
 
   /**
    * Get remaining burn duration (for visual effects)
    */
   public getBurnDurationRemaining(): number {
-    return this.burnDurationRemaining;
+    return this.burn.burnRemainingMs;
   }
 
   /**
    * Get fire exposure progress (0 to 1, where 1 = ignited)
    */
   public getFireExposureProgress(): number {
-    if (this.isBurning) {
-      return 1;
-    }
-    return Math.min(this.fireExposureTime / 1000, 1);
+    return this.burn.exposureProgress;
   }
 }
