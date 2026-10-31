@@ -11,8 +11,9 @@
  */
 
 export const DebugConstants = {
-  // Enable/disable debug mode
-  ENABLED: true,
+  // Debug overrides apply only in local dev builds (never in production or tests),
+  // so shipped games and the test suite always use the real balance values.
+  ENABLED: import.meta.env.DEV && import.meta.env.MODE !== 'test',
 
   // Starting Resources
   STARTING_MONEY: 1000, // Default: 500

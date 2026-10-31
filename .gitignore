@@ -38,4 +38,5 @@ design_docs/My_Docs/
 
 # TypeScript build artifacts
 *.d.ts
+!src/**/*.d.ts
 *.d.ts.map
