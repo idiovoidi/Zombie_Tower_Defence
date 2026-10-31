@@ -224,9 +224,20 @@ describe('Optimization Effectiveness Validation', () => {
       const rangeEndTime = performance.now();
       const rangeTime = rangeEndTime - rangeStartTime;
 
-      // queryFirst should be faster or similar (early exit optimization)
-      // Allow generous margin as performance can vary in virtualized test environments
-      expect(firstTime).toBeLessThanOrEqual(rangeTime * 10); // Allow 10x margin for test stability
+      // Correctness (deterministic): queryFirst returns a real in-range match, which
+      // queryRange also contains.
+      const first = grid.queryFirst(queryX, queryY, queryRange);
+      const all = grid.queryRange(queryX, queryY, queryRange);
+      if (all.length > 0) {
+        expect(first).not.toBeNull();
+        expect(all).toContain(first);
+      }
+
+      // Timing (sanity only): queryFirst should be faster or similar. These loops take
+      // ~1ms, so a single GC pause or parallel-worker load spike dwarfs a pure ratio;
+      // allow a 10x margin plus an absolute noise floor.
+      const NOISE_FLOOR_MS = 25;
+      expect(firstTime).toBeLessThanOrEqual(rangeTime * 10 + NOISE_FLOOR_MS);
 
       console.log('\n⚡ Early Exit Optimization:');
       console.log(`   queryFirst: ${firstTime.toFixed(2)}ms`);
