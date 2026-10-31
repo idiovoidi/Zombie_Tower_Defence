@@ -53,24 +53,15 @@ export abstract class BaseTowerRenderer implements ITowerRenderer {
       const waist = starSize * 0.38;
 
       visual
-        .poly([
-          x,
-          y - starSize,
-          x + waist,
-          y - waist,
-          x + starSize,
-          y,
-          x + waist,
-          y + waist,
-          x,
-          y + starSize,
-          x - waist,
-          y + waist,
-          x - starSize,
-          y,
-          x - waist,
-          y - waist,
-        ])
+        .moveTo(x, y - starSize)
+        .lineTo(x + waist, y - waist)
+        .lineTo(x + starSize, y)
+        .lineTo(x + waist, y + waist)
+        .lineTo(x, y + starSize)
+        .lineTo(x - waist, y + waist)
+        .lineTo(x - starSize, y)
+        .lineTo(x - waist, y - waist)
+        .lineTo(x, y - starSize)
         .fill(0xffd700)
         .stroke({ width: 1.5, color: 0x4a3500 });
     }
