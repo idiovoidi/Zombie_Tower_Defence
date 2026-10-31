@@ -151,6 +151,50 @@ export class MetalUI {
     return panel;
   }
 
+  /**
+   * Centered riveted caution panel with a title bar already attached.
+   * Used by full-screen modal menus (main menu, game over, ...).
+   */
+  static createMenuPanel(options: {
+    screenWidth: number;
+    screenHeight: number;
+    width: number;
+    height: number;
+    /** Vertical nudge from true center (negative = up). */
+    offsetY: number;
+    title: string;
+    subtitle: string;
+    titleBarY: number;
+    titleColor?: number;
+  }): Container {
+    const panel = new Container();
+    panel.position.set(
+      (options.screenWidth - options.width) / 2,
+      (options.screenHeight - options.height) / 2 + options.offsetY
+    );
+
+    panel.addChild(
+      MetalUI.createMetalPanel({
+        width: options.width,
+        height: options.height,
+        cautionTop: true,
+        cautionBottom: true,
+        rivets: true,
+      })
+    );
+
+    const titleBar = MetalUI.createTitleBar(
+      options.width - 40,
+      48,
+      options.title,
+      options.subtitle,
+      options.titleColor ?? UI_COLORS.ALERT
+    );
+    titleBar.position.set(20, options.titleBarY);
+    panel.addChild(titleBar);
+    return panel;
+  }
+
   static createTitleBar(
     width: number,
     height: number,

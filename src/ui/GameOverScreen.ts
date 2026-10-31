@@ -1,4 +1,4 @@
-import { Container, Text } from 'pixi.js';
+import { Text } from 'pixi.js';
 import { GameConfig } from '../config/gameConfig';
 import { UI_COLORS, UI_FONTS, UI_LAYOUT } from '../config/uiTheme';
 import { MetalUI } from './theme/MetalUI';
@@ -18,28 +18,17 @@ export class GameOverScreen extends UIComponent {
 
     this.addChild(MetalUI.createOverlay(w, h, 0.82));
 
-    const panel = new Container();
-    panel.position.set((w - panelW) / 2, (h - panelH) / 2 - 10);
-    this.addChild(panel);
-
-    const metal = MetalUI.createMetalPanel({
+    const panel = MetalUI.createMenuPanel({
+      screenWidth: w,
+      screenHeight: h,
       width: panelW,
       height: panelH,
-      cautionTop: true,
-      cautionBottom: true,
-      rivets: true,
+      offsetY: -10,
+      title: 'SIGNAL LOST',
+      subtitle: 'CAMP OVERRUN',
+      titleBarY: 22,
     });
-    panel.addChild(metal);
-
-    const titleBar = MetalUI.createTitleBar(
-      panelW - 40,
-      48,
-      'SIGNAL LOST',
-      'CAMP OVERRUN',
-      UI_COLORS.ALERT
-    );
-    titleBar.position.set(20, 22);
-    panel.addChild(titleBar);
+    this.addChild(panel);
 
     const title = MetalUI.createStencilText('GAME OVER', {
       fontSize: 42,

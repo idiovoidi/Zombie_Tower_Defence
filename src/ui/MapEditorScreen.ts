@@ -477,11 +477,19 @@ export class MapEditorScreen extends UIComponent {
     this.statusText.text = this.statusMessage;
   }
 
-  private saveDoc(): void {
+  /** Validate the working document; on failure show the first error and return false. */
+  private validateOrReport(): boolean {
     const result = validateCustomMap(this.doc);
-    if (!result.valid) {
-      this.statusMessage = `Fix: ${result.errors[0]}`;
-      this.refreshView();
+    if (result.valid) {
+      return true;
+    }
+    this.statusMessage = `Fix: ${result.errors[0]}`;
+    this.refreshView();
+    return false;
+  }
+
+  private saveDoc(): void {
+    if (!this.validateOrReport()) {
       return;
     }
     try {
@@ -494,10 +502,7 @@ export class MapEditorScreen extends UIComponent {
   }
 
   private exportDoc(): void {
-    const result = validateCustomMap(this.doc);
-    if (!result.valid) {
-      this.statusMessage = `Fix: ${result.errors[0]}`;
-      this.refreshView();
+    if (!this.validateOrReport()) {
       return;
     }
     try {
@@ -528,10 +533,7 @@ export class MapEditorScreen extends UIComponent {
   }
 
   private playDoc(): void {
-    const result = validateCustomMap(this.doc);
-    if (!result.valid) {
-      this.statusMessage = `Fix: ${result.errors[0]}`;
-      this.refreshView();
+    if (!this.validateOrReport()) {
       return;
     }
     try {
