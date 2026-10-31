@@ -1,5 +1,6 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { GameConfig } from '../config/gameConfig';
+import { UI_DIMENSIONS } from '../config/visualConstants';
 import { TowerManager } from '../managers/TowerManager';
 import { TextureGenerator } from '../utils/textureGenerator';
 import { UIComponent } from './UIComponent';
@@ -32,6 +33,8 @@ export class TowerShop extends UIComponent {
   private createShopUI(): void {
     const shopWidth = 220;
     const shopHeight = GameConfig.SCREEN_HEIGHT;
+
+    this.addSideRail(GameConfig.SCREEN_HEIGHT - GameConfig.UI_BOTTOM_BAR_HEIGHT);
 
     // Main panel background - corrugated metal
     const metalBg = TextureGenerator.createCorrugatedMetal(shopWidth, shopHeight);
@@ -119,6 +122,44 @@ export class TowerShop extends UIComponent {
     warning.anchor.set(0.5, 0.5);
     warning.position.set(shopWidth / 2, shopHeight - 15);
     this.addChild(warning);
+  }
+
+  /**
+   * Metal rail filling the gap between the playfield (1024px) and the shop column,
+   * so the map is framed instead of ending in a black strip. Drawn left of the shop.
+   */
+  private addSideRail(height: number): void {
+    const railWidth =
+      GameConfig.SCREEN_WIDTH - GameConfig.UI_SHOP_WIDTH - UI_DIMENSIONS.PLAY_AREA_WIDTH;
+    if (railWidth <= 0) {
+      return;
+    }
+
+    const rail = new Container();
+    rail.position.set(-railWidth, 0);
+
+    rail.addChild(TextureGenerator.createCorrugatedMetal(railWidth, height));
+
+    const edge = new Graphics();
+    // Dark inner shadow where the rail meets the map, hazard dashes along it
+    edge.rect(0, 0, 3, height).fill({ color: 0x000000, alpha: 0.55 });
+    for (let y = 0; y < height; y += 24) {
+      edge.rect(3, y, 5, 12).fill({ color: 0xffcc00, alpha: 0.85 });
+      edge.rect(3, y + 12, 5, 12).fill({ color: 0x1a1a1a, alpha: 0.9 });
+    }
+    edge.rect(0, 0, railWidth, height).stroke({ width: 2, color: 0x2a2a2a });
+    rail.addChild(edge);
+
+    for (let y = 40; y < height - 20; y += 96) {
+      const rivet = new Graphics();
+      rivet.circle(0, 0, 4).fill(0x5a5a5a);
+      rivet.circle(0, 0, 3).fill(0x6a6a6a);
+      rivet.circle(-1, -1, 2).fill(0x8a8a8a);
+      rivet.position.set(railWidth / 2 + 3, y);
+      rail.addChild(rivet);
+    }
+
+    this.addChild(rail);
   }
 
   private addRivets(_container: Container, width: number, height: number): void {

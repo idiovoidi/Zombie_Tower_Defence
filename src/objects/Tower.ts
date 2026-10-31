@@ -89,6 +89,10 @@ export class Tower extends GameObject implements ITower, TowerEffects {
     const transform = new TransformComponent(x, y);
     this.addComponent(transform);
 
+    // Soft ground shadow (light from the top-right, so it falls down-left). Drawn first so it
+    // sits under the tower body and gives the sprite weight against the terrain.
+    this.addChild(Tower.createGroundShadow());
+
     // Create visual representation
     this.visual = new Graphics();
     this.addChild(this.visual);
@@ -110,6 +114,14 @@ export class Tower extends GameObject implements ITower, TowerEffects {
     if (this.type === GameConfig.TOWER_TYPES.MACHINE_GUN) {
       this.barrelHeatGlow = new BarrelHeatGlow(this.barrel);
     }
+  }
+
+  /** Two stacked ellipses approximate a penumbra: darker core, softer outer edge. */
+  private static createGroundShadow(): Graphics {
+    const shadow = new Graphics();
+    shadow.ellipse(-6, 21, 27, 9).fill({ color: 0x000000, alpha: 0.2 });
+    shadow.ellipse(-6, 21, 19, 6).fill({ color: 0x000000, alpha: 0.22 });
+    return shadow;
   }
 
   private initializeStats(): void {

@@ -11,6 +11,8 @@ import { CampUpgradePanel } from '../ui/CampUpgradePanel';
 import { DebugInfoPanel } from '../ui/DebugInfoPanel';
 import { GameOverScreen } from '../ui/GameOverScreen';
 import { VictoryScreen } from '../ui/VictoryScreen';
+import { WaveBanner } from '../ui/WaveBanner';
+import { announceWaveClear, announceWaveStart } from '../ui/waveAnnouncement';
 import { LevelSelectMenu } from '../ui/LevelSelectMenu';
 import { MainMenu } from '../ui/MainMenu';
 import { MapEditorScreen } from '../ui/MapEditorScreen';
@@ -34,6 +36,7 @@ export interface UIContext {
   timeControlUI: TimeControlUI;
   gameOverScreen: GameOverScreen;
   victoryScreen: VictoryScreen;
+  waveBanner: WaveBanner;
   mainMenu: MainMenu;
   levelSelectMenu: LevelSelectMenu;
   mapEditorScreen: MapEditorScreen;
@@ -72,6 +75,9 @@ export function createUI(
 
   const victoryScreen = new VictoryScreen();
   uiManager.registerComponent('victoryScreen', victoryScreen);
+
+  const waveBanner = new WaveBanner();
+  uiManager.registerComponent('waveBanner', waveBanner);
 
   const towerManager = gameManager.getTowerManager();
   const towerShop = new TowerShop(towerManager);
@@ -155,11 +161,13 @@ export function createUI(
   });
 
   eventBus.on(GameEvents.GAME_OVER, data => {
+    waveBanner.dismiss();
     gameOverScreen.showGameOver(data.score);
     uiManager.setState(GameConfig.GAME_STATES.GAME_OVER);
   });
 
   eventBus.on(GameEvents.GAME_VICTORY, data => {
+    waveBanner.dismiss();
     const levelManager = gameManager.getLevelManager();
     victoryScreen.showVictory({
       score: data.score,
@@ -351,6 +359,7 @@ export function createUI(
     timeControlUI,
     gameOverScreen,
     victoryScreen,
+    waveBanner,
     mainMenu,
     levelSelectMenu,
     mapEditorScreen,
@@ -416,12 +425,24 @@ export function bindGameHudEvents(gameManager: GameManager, ui: UIContext): void
   eventBus.on(GameEvents.MONEY_SPENT, refreshMoney);
   eventBus.on(GameEvents.LIFE_LOST, refreshLives);
   eventBus.on(GameEvents.LIVES_CHANGED, refreshLives);
-  eventBus.on(GameEvents.WAVE_START, () => {
+  eventBus.on(GameEvents.WAVE_START, ({ wave }) => {
     refreshWave();
     ui.bottomBar.hideNextWaveButton();
+
+    const waveManager = gameManager.getWaveManager();
+    ui.waveBanner.announce(
+      announceWaveStart(
+        wave,
+        waveManager.getZombiesForWave(wave).map(group => ({
+          type: group.type,
+          count: waveManager.calculateZombieCount(group.count, wave, group.type),
+        }))
+      )
+    );
   });
-  eventBus.on(GameEvents.WAVE_COMPLETE, () => {
+  eventBus.on(GameEvents.WAVE_COMPLETE, ({ wave, livesLost }) => {
     ui.bottomBar.showNextWaveButton();
+    ui.waveBanner.announce(announceWaveClear(wave, livesLost));
   });
 
   syncGameHud(gameManager, ui);

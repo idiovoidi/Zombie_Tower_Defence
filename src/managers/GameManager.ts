@@ -9,6 +9,7 @@ import type { Tower } from '../objects/Tower';
 import type { ITower } from '../objects/Tower.interface';
 import type { Zombie } from '../objects/Zombie';
 import { EffectManager } from '../renderers/effects/EffectManager';
+import { VignetteOverlay } from '../renderers/effects/VignetteOverlay';
 import type { SludgePoolEffect } from '../renderers/effects/SludgePoolEffect';
 import { VisualMapRenderer } from '../renderers/VisualMapRenderer';
 import type { IStatTracker } from '../types/gameProviders';
@@ -118,6 +119,11 @@ export class GameManager {
     this.worldContainer = new Container();
     this.worldContainer.sortableChildren = true;
     this.viewportContainer.addChild(this.worldContainer);
+
+    // Screen-space edge darkening above the (panning) world, clipped by the play-area mask
+    this.viewportContainer.addChild(
+      new VignetteOverlay(UI_DIMENSIONS.PLAY_AREA_WIDTH, UI_DIMENSIONS.HEIGHT)
+    );
 
     this.gameContainer = new Container();
     this.gameContainer.sortableChildren = true;
