@@ -195,12 +195,39 @@ export class MetalUI {
     return panel;
   }
 
+  /**
+   * Full-height steel plate for the column right of the 1024px playfield (where the shop sits
+   * in-game). Placed under all UI so menu screens do not show a black strip there.
+   */
+  static createSidePlate(width: number, height: number): Container {
+    const plate = new Container();
+    plate.eventMode = 'none';
+    plate.addChild(TextureGenerator.createCorrugatedMetal(width, height));
+
+    const inner = TextureGenerator.createRustyMetal(width - 20, height - 20);
+    inner.position.set(10, 10);
+    plate.addChild(inner);
+
+    const trim = new Graphics();
+    // Hazard-dashed seam where the plate meets the map
+    for (let y = 0; y < height; y += 24) {
+      trim.rect(0, y, 6, 12).fill({ color: UI_COLORS.WARNING, alpha: 0.85 });
+      trim.rect(0, y + 12, 6, 12).fill({ color: UI_COLORS.METAL_DARK, alpha: 0.9 });
+    }
+    trim.rect(0, 0, width, height).stroke({ width: 3, color: UI_COLORS.METAL_PANEL });
+    plate.addChild(trim);
+
+    MetalUI.addCornerRivets(plate, width, height, 5, false);
+    return plate;
+  }
+
   static createTitleBar(
     width: number,
     height: number,
     title: string,
     subtitle?: string,
-    titleColor: number = UI_COLORS.ALERT
+    titleColor: number = UI_COLORS.ALERT,
+    subtitleStyle: { fontSize?: number; fill?: number } = {}
   ): Container {
     const bar = new Container();
 
@@ -237,8 +264,8 @@ export class MetalUI {
         text: subtitle,
         style: {
           fontFamily: UI_FONTS.BODY,
-          fontSize: 9,
-          fill: UI_COLORS.TEXT_DIM,
+          fontSize: subtitleStyle.fontSize ?? 9,
+          fill: subtitleStyle.fill ?? UI_COLORS.TEXT_DIM,
           fontWeight: 'bold',
           letterSpacing: 1,
         },

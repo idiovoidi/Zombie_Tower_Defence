@@ -42,6 +42,35 @@ export class DebugTestUIManager {
     this.createMapSelectPanel();
 
     this.layoutPanels();
+
+    if (!DebugConstants.ENABLED) {
+      this.hideAllPanels();
+    }
+  }
+
+  /**
+   * Production builds must not show debug UI. Each panel owns an always-visible toggle
+   * button (some sit partly off-screen), so hide the panels themselves, not just their content.
+   */
+  private hideAllPanels(): void {
+    const panels = [
+      this.waveInfoPanel,
+      this.bestiaryPanel,
+      this.statsPanel,
+      this.aiControlPanel,
+      this.mapSelectPanel,
+    ];
+    for (const panel of panels) {
+      if (!panel) {
+        continue;
+      }
+      panel.visible = false;
+      // UIPanel subclasses also own a separately-attached content container
+      if ('getContentContainer' in panel) {
+        panel.close();
+        panel.getContentContainer().visible = false;
+      }
+    }
   }
 
   private createWaveInfoPanel(): void {

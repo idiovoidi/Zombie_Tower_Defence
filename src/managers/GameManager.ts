@@ -282,6 +282,19 @@ export class GameManager {
     this.eventBus.emit(GameEvents.WAVE_START, { wave: this.getWave() });
   }
 
+  /**
+   * Draw a level's map behind the menus without starting a run, so the main menu and level
+   * select sit over the battlefield instead of a black screen.
+   */
+  public showMenuBackdrop(levelId = 'level1'): void {
+    const level = this.levelManager.getLevel(levelId);
+    if (!level || !this.mapManager.loadMap(level.map)) {
+      return;
+    }
+    this.visualMapRenderer?.renderMap(level.map);
+    this.syncCameraToCurrentMap();
+  }
+
   public startGameWithLevel(levelId: string): void {
     this.prepareWaveOverridesForLevel(levelId);
 

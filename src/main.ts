@@ -67,6 +67,8 @@ import { DebugUtils } from './utils/DebugUtils';
   } else {
     // Apply the main-menu visibility set (hides HUD, shop, level select, etc.)
     ui.uiManager.setState(GameConfig.GAME_STATES.MAIN_MENU);
+    gameManager.showMenuBackdrop();
+    refreshPathOverlay();
   }
 
   startGameLoop(app, gameManager, timeControlManager, ui, pixelArtRenderer, {

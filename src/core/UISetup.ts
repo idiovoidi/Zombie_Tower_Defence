@@ -1,6 +1,7 @@
 import type { Application } from 'pixi.js';
 import { DebugConstants } from '../config/debugConstants';
 import { GameConfig } from '../config/gameConfig';
+import { UI_DIMENSIONS } from '../config/visualConstants';
 import { customMapStore, syncCustomMapsToManagers } from '../customMaps';
 import { CampUpgradeManager } from '../managers/CampUpgradeManager';
 import { DebugTestUIManager } from '../managers/DebugTestUIManager';
@@ -10,9 +11,6 @@ import { BottomBar } from '../ui/BottomBar';
 import { CampUpgradePanel } from '../ui/CampUpgradePanel';
 import { DebugInfoPanel } from '../ui/DebugInfoPanel';
 import { GameOverScreen } from '../ui/GameOverScreen';
-import { VictoryScreen } from '../ui/VictoryScreen';
-import { WaveBanner } from '../ui/WaveBanner';
-import { announceWaveClear, announceWaveStart } from '../ui/waveAnnouncement';
 import { LevelSelectMenu } from '../ui/LevelSelectMenu';
 import { MainMenu } from '../ui/MainMenu';
 import { MapEditorScreen } from '../ui/MapEditorScreen';
@@ -20,7 +18,11 @@ import { MoneyAnimation } from '../ui/MoneyAnimation';
 import { TimeControlUI } from '../ui/TimeControlUI';
 import { TowerInfoPanel } from '../ui/TowerInfoPanel';
 import { TowerShop } from '../ui/TowerShop';
+import { MetalUI } from '../ui/theme/MetalUI';
 import { UIManager } from '../ui/UIManager';
+import { VictoryScreen } from '../ui/VictoryScreen';
+import { WaveBanner } from '../ui/WaveBanner';
+import { announceWaveClear, announceWaveStart } from '../ui/waveAnnouncement';
 import { DebugUtils } from '../utils/DebugUtils';
 import { GameEvents } from '../utils/EventBus';
 import { VisualEffects } from '../utils/VisualEffects';
@@ -49,6 +51,15 @@ export function createUI(
   timeControlManager: TimeControlManager
 ): UIContext {
   const uiManager = new UIManager(app);
+
+  // Steel plate under all UI for the column beside the 1024px map (the shop covers it in-game)
+  const sidePlateX = UI_DIMENSIONS.PLAY_AREA_WIDTH;
+  const sidePlate = MetalUI.createSidePlate(
+    GameConfig.SCREEN_WIDTH - sidePlateX,
+    GameConfig.SCREEN_HEIGHT
+  );
+  sidePlate.position.set(sidePlateX, 0);
+  app.stage.addChild(sidePlate);
 
   const screenWidth = GameConfig.SCREEN_WIDTH;
   const screenHeight = GameConfig.SCREEN_HEIGHT;

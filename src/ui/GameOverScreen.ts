@@ -14,7 +14,7 @@ export class GameOverScreen extends UIComponent {
 
     const { SCREEN_WIDTH: w, SCREEN_HEIGHT: h } = GameConfig;
     const panelW = 480;
-    const panelH = 360;
+    const panelH = 385;
 
     this.addChild(MetalUI.createOverlay(w, h, 0.82));
 

@@ -6,7 +6,7 @@ import { UIComponent } from './UIComponent';
 import { bannerPose, type WaveAnnouncement } from './waveAnnouncement';
 
 const BANNER_WIDTH = 460;
-const BANNER_HEIGHT = 56;
+const BANNER_HEIGHT = 64;
 /** Resting Y of the banner's top edge, and how far above it starts. */
 const REST_Y = 96;
 const SLIDE_DISTANCE = 90;
@@ -43,7 +43,8 @@ export class WaveBanner extends UIComponent {
       BANNER_HEIGHT,
       announcement.title,
       announcement.subtitle,
-      TONE_COLORS[announcement.tone]
+      TONE_COLORS[announcement.tone],
+      { fontSize: 13, fill: UI_COLORS.TEXT }
     );
     this.bar.position.set(-BANNER_WIDTH / 2, 0);
     this.addChild(this.bar);
