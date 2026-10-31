@@ -88,14 +88,22 @@ describe('campaign progression (debug off)', () => {
     expect(lm.getBestWave('level1')).toBe(7);
   });
 
-  test('every campaign level has a sensible length; the final level is endless', () => {
+  test('campaign levels have a sensible length; only the post-campaign siege is endless', () => {
     const { lm } = makeManager();
-    for (const id of ['level1', 'level2', 'level3', 'level4', 'level5', 'level7']) {
+    for (const id of ['level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7']) {
       const waves = lm.getLevel(id)?.totalWaves;
       expect(waves).toBeGreaterThanOrEqual(10);
       expect(waves).toBeLessThanOrEqual(25);
     }
-    expect(lm.getLevel('level6')?.totalWaves).toBeUndefined();
+    expect(lm.getLevel('level8')?.totalWaves).toBeUndefined();
+  });
+
+  test('clearing the final lab ends the campaign and unlocks Endless Siege', () => {
+    const { lm } = makeManager();
+    expect(lm.isLevelUnlocked('level8')).toBe(false);
+    expect(lm.markCompleted('level6')).toEqual(['level8']);
+    expect(lm.isLevelUnlocked('level8')).toBe(true);
+    expect(lm.getLevel('level8')?.name).toBe('Endless Siege');
   });
 
   test('clearCurrentLevel forgets the active level so a bare-map run cannot inherit it', () => {

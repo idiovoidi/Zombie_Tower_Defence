@@ -108,13 +108,27 @@ export class LevelManager {
     this.levels.set('level6', {
       id: 'level6',
       name: 'Secret Laboratory',
-      description: 'The final challenge - survive the endless waves',
+      description: 'The final challenge - hold the lab until the outbreak ends',
+      map: 'laboratory',
+      difficulty: 'Nightmare',
+      startingMoney: 300,
+      startingLives: 30,
+      totalWaves: 22,
+      resourceModifiers: { wood: 0.5, metal: 0.5, energy: 2.0 },
+      unlockConditions: { previousLevel: 'level5' },
+    });
+
+    // Post-campaign survival mode: no final wave, unlocked by clearing the Secret Laboratory
+    this.levels.set('level8', {
+      id: 'level8',
+      name: 'Endless Siege',
+      description: 'Beyond the last wave - how long can the camp hold?',
       map: 'laboratory',
       difficulty: 'Nightmare',
       startingMoney: 300,
       startingLives: 30,
       resourceModifiers: { wood: 0.5, metal: 0.5, energy: 2.0 },
-      unlockConditions: { previousLevel: 'level5' },
+      unlockConditions: { previousLevel: 'level6' },
     });
 
     this.levels.set('level7', {
