@@ -1,11 +1,4 @@
 import { playParticleDeathAnimation } from './CustomDeathAnimation';
-import {
-  createHumanoidArm,
-  createHumanoidHead,
-  createHumanoidLegs,
-  createHumanoidShadow,
-  createHumanoidTorso,
-} from './HumanoidPartBuilder';
 import { HumanoidZombieRenderer } from './HumanoidZombieRenderer';
 import { ParticleType } from './ZombieParticleSystem';
 import type { ZombieRenderState } from './ZombieRenderer';
@@ -48,16 +41,9 @@ export class StealthZombieRenderer extends HumanoidZombieRenderer {
       strokeAlpha: 0.4,
     };
 
-    this.shadowPart = createHumanoidShadow();
-    const legs = createHumanoidLegs(palette);
-    this.leftLegPart = legs.leftLeg;
-    this.rightLegPart = legs.rightLeg;
-    this.torsoPart = createHumanoidTorso(palette);
-    this.headPart = createHumanoidHead(palette);
+    this.buildHumanoidParts(palette);
     // Soft aura around head
     this.headPart.circle(0, 0, 6).fill({ color: 0x4a3a5a, alpha: 0.12 });
-    this.leftArmPart = createHumanoidArm(palette, 'left');
-    this.rightArmPart = createHumanoidArm(palette, 'right');
 
     this.finishInitParts();
   }

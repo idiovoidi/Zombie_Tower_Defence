@@ -1,6 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import type { LimbFlags, LimbId } from '../../components/LimbState';
 import { EffectCleanupManager } from '../../utils/EffectCleanupManager';
+import { createHumanoidParts, type HumanoidPartOptions } from './HumanoidPartBuilder';
 import {
   calculateDeathImpulses,
   createRagdollConfig,
@@ -212,6 +213,24 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
    * Subclasses implement this to create their static graphics parts.
    */
   protected abstract initParts(): void;
+
+  /**
+   * Build and assign the standard humanoid part set (shadow, legs, torso, head, arms).
+   * Callers may tweak parts afterwards, then must call finishInitParts().
+   */
+  protected buildHumanoidParts(
+    palette: HumanoidPartOptions,
+    shadow?: { y?: number; size?: number }
+  ): void {
+    const parts = createHumanoidParts(palette, shadow);
+    this.shadowPart = parts.shadow;
+    this.leftLegPart = parts.leftLeg;
+    this.rightLegPart = parts.rightLeg;
+    this.torsoPart = parts.torso;
+    this.headPart = parts.head;
+    this.leftArmPart = parts.leftArm;
+    this.rightArmPart = parts.rightArm;
+  }
 
   /** Shared tail for initParts — creates wounds layer and registers skeletal parts. */
   protected finishInitParts(): void {

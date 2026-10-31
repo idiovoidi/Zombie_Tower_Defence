@@ -313,7 +313,10 @@ export function createHumanoidArm(
 /**
  * Convenience: build a full standard humanoid set from options.
  */
-export function createHumanoidParts(options: HumanoidPartOptions): {
+export function createHumanoidParts(
+  options: HumanoidPartOptions,
+  shadow?: { y?: number; size?: number }
+): {
   shadow: Graphics;
   leftLeg: Graphics;
   rightLeg: Graphics;
@@ -325,7 +328,7 @@ export function createHumanoidParts(options: HumanoidPartOptions): {
   const scale = s(options);
   const legs = createHumanoidLegs(options);
   return {
-    shadow: createHumanoidShadow(15 * scale, 8 * scale),
+    shadow: createHumanoidShadow(shadow?.y ?? 15 * scale, shadow?.size ?? 8 * scale),
     leftLeg: legs.leftLeg,
     rightLeg: legs.rightLeg,
     torso: createHumanoidTorso(options),
