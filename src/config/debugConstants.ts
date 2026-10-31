@@ -2,6 +2,8 @@
  * Debug Constants - Easy to modify values for testing and debugging
  *
  * Change these values to quickly test different game scenarios.
+ * Multipliers default to 1.0 (neutral): the base balance already contains the tuned values,
+ * so dev builds play like production unless you change something here.
  * These override the default game config values when ENABLED is true.
  *
  * Runtime without editing this file:
@@ -16,7 +18,7 @@ export const DebugConstants = {
   ENABLED: import.meta.env.DEV && import.meta.env.MODE !== 'test',
 
   // Starting Resources
-  STARTING_MONEY: 1000, // Default: 500
+  STARTING_MONEY: 1000, // Default: 1000
   STARTING_LIVES: 100, // Default: 100 (survivors)
   STARTING_WOOD: 1000, // Default: 0
   STARTING_METAL: 1000, // Default: 0
@@ -28,18 +30,18 @@ export const DebugConstants = {
   ENERGY_GENERATION_RATE: 2, // Default: 1
 
   // Tower Costs (set to 0 for free towers)
-  TOWER_COST_MULTIPLIER: 0.1, // Multiply all tower costs by this (1.0 = normal, 0 = free)
-  UPGRADE_COST_MULTIPLIER: 0.1, // Multiply all upgrade costs by this
+  TOWER_COST_MULTIPLIER: 1.0, // Multiply all tower costs by this (1.0 = normal, 0 = free)
+  UPGRADE_COST_MULTIPLIER: 1.0, // Multiply all upgrade costs by this
 
   // Tower Stats — keep at 1.0 so "unupgraded" towers aren't secretly buffed in debug
   TOWER_DAMAGE_MULTIPLIER: 1.0,
-  TOWER_RANGE_MULTIPLIER: 1.5, // Multiply all tower range by this
+  TOWER_RANGE_MULTIPLIER: 1.0, // Multiply all tower range by this
   TOWER_FIRE_RATE_MULTIPLIER: 1.0,
 
   // Zombie Stats
   ZOMBIE_HEALTH_MULTIPLIER: 1.0,
-  ZOMBIE_SPEED_MULTIPLIER: 0.5, // Multiply all zombie speed by this (lower = slower)
-  ZOMBIE_SPAWN_RATE_MULTIPLIER: 0.5, // Multiply spawn rate by this (lower = fewer zombies)
+  ZOMBIE_SPEED_MULTIPLIER: 1.0, // Multiply all zombie speed by this (lower = slower)
+  ZOMBIE_SPAWN_RATE_MULTIPLIER: 1.0, // Multiply spawn rate by this (lower = fewer zombies)
 
   // Wave Settings
   START_AT_WAVE: 1, // Start at this wave number

@@ -19,6 +19,9 @@ export interface ZombieGroup {
 }
 
 export class WaveManager {
+  /** Multiplier on authored spawn intervals (wider spacing between zombies). */
+  public static readonly SPAWN_INTERVAL_SCALE = 2;
+
   private currentWave: number;
   private waveData: Map<number, ZombieGroup[]>;
   /** Sparse per-wave overrides from custom maps; null means use built-in table. */
@@ -518,6 +521,13 @@ export class WaveManager {
         count: 1,
         spawnInterval: 10.0,
       });
+    }
+
+    // Pacing: authored intervals are scaled so hordes arrive at the tuned density.
+    for (const groups of this.waveData.values()) {
+      for (const group of groups) {
+        group.spawnInterval *= WaveManager.SPAWN_INTERVAL_SCALE;
+      }
     }
   }
 

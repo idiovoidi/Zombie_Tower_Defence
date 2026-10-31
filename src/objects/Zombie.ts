@@ -128,52 +128,52 @@ export class Zombie extends GameObject {
     // Set base speed, reward, and damage based on type
     switch (this.type) {
       case GameConfig.ZOMBIE_TYPES.BASIC:
-        this.baseSpeed = 50; // pixels per second
+        this.baseSpeed = 25; // pixels per second
         this.reward = 5;
         this.damage = 1; // 1 survivor killed
         break;
       case GameConfig.ZOMBIE_TYPES.FAST:
-        this.baseSpeed = 100;
+        this.baseSpeed = 50;
         this.reward = 8;
         this.damage = 1; // Fast but weak
         break;
       case GameConfig.ZOMBIE_TYPES.TANK:
-        this.baseSpeed = 25;
+        this.baseSpeed = 12.5;
         this.reward = 25;
         this.damage = 5; // Massive damage
         break;
       case GameConfig.ZOMBIE_TYPES.ARMORED:
-        this.baseSpeed = 40;
+        this.baseSpeed = 20;
         this.reward = 15;
         this.damage = 3; // Heavy damage
         break;
       case GameConfig.ZOMBIE_TYPES.SWARM:
-        this.baseSpeed = 60;
+        this.baseSpeed = 30;
         this.reward = 3;
         this.damage = 1; // Small but numerous
         break;
       case GameConfig.ZOMBIE_TYPES.STEALTH:
-        this.baseSpeed = 70;
+        this.baseSpeed = 35;
         this.reward = 12;
         this.damage = 2; // Moderate damage
         break;
       case GameConfig.ZOMBIE_TYPES.MECHANICAL:
-        this.baseSpeed = 55;
+        this.baseSpeed = 27.5;
         this.reward = 20;
         this.damage = 4; // High-tech threat
         break;
       case GameConfig.ZOMBIE_TYPES.BOSS:
-        this.baseSpeed = 18;
+        this.baseSpeed = 9;
         this.reward = 75;
         this.damage = 10; // Devastating camp damage
         break;
       case GameConfig.ZOMBIE_TYPES.NECRO_TANK:
-        this.baseSpeed = 20;
+        this.baseSpeed = 10;
         this.reward = 200;
         this.damage = 8; // Heavy camp damage; slightly less than Boss
         break;
       default:
-        this.baseSpeed = 50;
+        this.baseSpeed = 25;
         this.reward = 5;
         this.damage = 1;
     }

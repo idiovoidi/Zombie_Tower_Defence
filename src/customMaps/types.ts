@@ -61,8 +61,8 @@ export function createEmptyCustomMapDocument(
       waypoints: [],
     },
     level: partial?.level ?? {
-      startingMoney: 500,
-      startingLives: 20,
+      startingMoney: 1000,
+      startingLives: 100,
       difficulty: 'Normal',
     },
     waves: partial?.waves ?? [],

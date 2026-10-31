@@ -42,8 +42,8 @@ export class LevelManager {
       description: 'A basic level for learning the game mechanics',
       map: 'forked',
       difficulty: 'Easy',
-      startingMoney: 500,
-      startingLives: 20,
+      startingMoney: 1000,
+      startingLives: 100,
       resourceModifiers: { wood: 1.0, metal: 1.0, energy: 1.0 },
     });
 
@@ -53,8 +53,8 @@ export class LevelManager {
       description: 'Navigate through the dense forest with limited sight',
       map: 'forest',
       difficulty: 'Normal',
-      startingMoney: 400,
-      startingLives: 15,
+      startingMoney: 800,
+      startingLives: 80,
       resourceModifiers: { wood: 1.5, metal: 0.8, energy: 1.0 },
       unlockConditions: { previousLevel: 'level1' },
     });
@@ -65,8 +65,8 @@ export class LevelManager {
       description: 'Defend against waves in the tight city streets',
       map: 'city',
       difficulty: 'Hard',
-      startingMoney: 300,
-      startingLives: 10,
+      startingMoney: 600,
+      startingLives: 60,
       resourceModifiers: { wood: 0.8, metal: 1.5, energy: 1.2 },
       unlockConditions: { previousLevel: 'level2' },
     });
@@ -77,8 +77,8 @@ export class LevelManager {
       description: 'Navigate the industrial maze with limited resources',
       map: 'industrial',
       difficulty: 'Nightmare',
-      startingMoney: 250,
-      startingLives: 8,
+      startingMoney: 500,
+      startingLives: 50,
       resourceModifiers: { wood: 0.6, metal: 1.8, energy: 1.5 },
       unlockConditions: { previousLevel: 'level3' },
     });
@@ -89,8 +89,8 @@ export class LevelManager {
       description: 'Survive the treacherous wetlands with scarce metal',
       map: 'swamp',
       difficulty: 'Nightmare',
-      startingMoney: 200,
-      startingLives: 5,
+      startingMoney: 400,
+      startingLives: 40,
       resourceModifiers: { wood: 2.0, metal: 0.5, energy: 1.0 },
       unlockConditions: { previousLevel: 'level4' },
     });
@@ -101,8 +101,8 @@ export class LevelManager {
       description: 'The final challenge - survive the endless waves',
       map: 'laboratory',
       difficulty: 'Nightmare',
-      startingMoney: 150,
-      startingLives: 3,
+      startingMoney: 300,
+      startingLives: 30,
       resourceModifiers: { wood: 0.5, metal: 0.5, energy: 2.0 },
       unlockConditions: { previousLevel: 'level5' },
     });
@@ -113,8 +113,8 @@ export class LevelManager {
       description: 'A wider battlefield — pan the camera to defend the full stretch',
       map: 'highway',
       difficulty: 'Normal',
-      startingMoney: 450,
-      startingLives: 15,
+      startingMoney: 900,
+      startingLives: 80,
       resourceModifiers: { wood: 1.0, metal: 1.0, energy: 1.0 },
       unlockConditions: { previousLevel: 'level1' },
     });
