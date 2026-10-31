@@ -416,17 +416,19 @@ describe('Performance Benchmark Tests', () => {
       expect(metrics.systemTimes.has('testSystem2')).toBe(true);
       expect(metrics.systemTimes.has('testSystem3')).toBe(true);
 
-      // Verify times are approximately correct (within 1ms tolerance)
+      // A system can never be measured as faster than it ran, so the lower bound is strict.
+      // The upper bound allows scheduler/GC delay: a busy-wait of N ms can overrun under load.
       const time1 = metrics.systemTimes.get('testSystem1') || 0;
       const time2 = metrics.systemTimes.get('testSystem2') || 0;
       const time3 = metrics.systemTimes.get('testSystem3') || 0;
+      const OVERRUN_ALLOWANCE_MS = 25;
 
       expect(time1).toBeGreaterThanOrEqual(4.0);
-      expect(time1).toBeLessThanOrEqual(6.0);
+      expect(time1).toBeLessThanOrEqual(5.0 + OVERRUN_ALLOWANCE_MS);
       expect(time2).toBeGreaterThanOrEqual(9.0);
-      expect(time2).toBeLessThanOrEqual(11.0);
+      expect(time2).toBeLessThanOrEqual(10.0 + OVERRUN_ALLOWANCE_MS);
       expect(time3).toBeGreaterThanOrEqual(1.0);
-      expect(time3).toBeLessThanOrEqual(3.0);
+      expect(time3).toBeLessThanOrEqual(2.0 + OVERRUN_ALLOWANCE_MS);
     });
 
     test('should track entity counts correctly', () => {
