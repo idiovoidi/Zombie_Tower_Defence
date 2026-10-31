@@ -15,7 +15,7 @@ import type { IStatTracker } from '../types/gameProviders';
 import { Camera } from '../utils/Camera';
 import { EffectCleanupManager } from '../utils/EffectCleanupManager';
 import { EventBus, GameEvents } from '../utils/EventBus';
-import { type GameLogEntry, LogExporter } from '../utils/LogExporter';
+import { LogExporter } from '../utils/LogExporter';
 import { OptimizationValidator } from '../utils/OptimizationValidator';
 import { PerformanceMonitor } from '../utils/PerformanceMonitor';
 import { ResourceCleanupManager } from '../utils/ResourceCleanupManager';
@@ -26,6 +26,7 @@ import { EconomyState } from './EconomyState';
 import type { InputManager } from './InputManager';
 import { LevelManager } from './LevelManager';
 import { LevelState } from './LevelState';
+import { exportManualGameLog } from './ManualGameLogExporter';
 import { MapManager } from './MapManager';
 import { ProjectileManager } from './ProjectileManager';
 import { SludgePoolManager } from './SludgePoolManager';
@@ -33,6 +34,7 @@ import { TowerCombatManager } from './TowerCombatManager';
 import { TowerManager } from './TowerManager';
 import { TowerPlacementManager } from './TowerPlacementManager';
 import { WaveManager } from './WaveManager';
+import { trackFrameTelemetry } from './FrameTelemetry';
 import { ZombieManager } from './ZombieManager';
 
 export interface GameManagerDeps {
@@ -435,61 +437,23 @@ export class GameManager {
     }, 100);
   }
 
-  private async exportManualGameLog(): Promise<void> {
-    const { PerformanceMonitor } = await import('../utils/PerformanceMonitor');
+  private exportManualGameLog(): void {
+    const balanceData = this.analyticsState.isBalanceTrackingEnabled()
+      ? (this.analyticsState.getBalanceTrackingManager().generateReportData() as Record<
+          string,
+          unknown
+        >)
+      : undefined;
 
-    const logEntry = {
-      timestamp: new Date().toISOString(),
-      sessionId: LogExporter.getSessionId(),
-      isAIRun: false,
-      duration: 0,
-      startTime: new Date().toISOString(),
-      endTime: new Date().toISOString(),
-      gameData: {
-        highestWave: this.getWave(),
-        finalMoney: this.getMoney(),
-        finalLives: this.lives,
-        startLives: DebugConstants.ENABLED
-          ? DebugConstants.STARTING_LIVES
-          : GameConfig.STARTING_LIVES,
-        survivalRate: Number.parseFloat(
-          (
-            (this.lives /
-              (DebugConstants.ENABLED
-                ? DebugConstants.STARTING_LIVES
-                : GameConfig.STARTING_LIVES)) *
-            100
-          ).toFixed(1)
-        ),
-        livesLost:
-          (DebugConstants.ENABLED ? DebugConstants.STARTING_LIVES : GameConfig.STARTING_LIVES) -
-          this.lives,
-      },
-      performanceStats: {
-        waveMemorySnapshots: PerformanceMonitor.getWaveMemorySnapshots(),
-        memoryGrowthRate: PerformanceMonitor.getMemoryGrowthRate(),
-        averageFrameTime: PerformanceMonitor.getMetrics().frameTime || 0,
-        peakFrameTime: PerformanceMonitor.getMetrics().frameTime || 0,
-        averageFPS:
-          PerformanceMonitor.getMetrics().frameTime > 0
-            ? Math.round(1000 / PerformanceMonitor.getMetrics().frameTime)
-            : 60,
-        lowestFPS:
-          PerformanceMonitor.getMetrics().frameTime > 0
-            ? Math.round(1000 / PerformanceMonitor.getMetrics().frameTime)
-            : 60,
-      },
-    } as GameLogEntry;
-
-    let balanceData: Record<string, unknown> | undefined;
-    if (this.analyticsState.isBalanceTrackingEnabled()) {
-      balanceData = this.analyticsState.getBalanceTrackingManager().generateReportData() as Record<
-        string,
-        unknown
-      >;
-    }
-
-    LogExporter.exportLog(logEntry, balanceData);
+    exportManualGameLog({
+      highestWave: this.getWave(),
+      finalMoney: this.getMoney(),
+      finalLives: this.lives,
+      startLives: DebugConstants.ENABLED
+        ? DebugConstants.STARTING_LIVES
+        : GameConfig.STARTING_LIVES,
+      balanceData,
+    });
   }
 
   public victory(): void {
@@ -770,39 +734,13 @@ export class GameManager {
       }
     }
 
-    // Track entity counts
     if (isPlaying) {
-      PerformanceMonitor.trackEntityCount('zombies', this.zombieManager.getZombies().length);
-      PerformanceMonitor.trackEntityCount(
-        'towers',
-        this.towerPlacementManager.getPlacedTowers().length
-      );
-      PerformanceMonitor.trackEntityCount(
-        'projectiles',
-        this.projectileManager.getProjectiles().length
-      );
-
-      const effectCounts = this.effectManager.getEffectCounts();
-      PerformanceMonitor.trackEntityCount(
-        'effects',
-        effectCounts.casings +
-          effectCounts.flashes +
-          effectCounts.trails +
-          effectCounts.impacts +
-          effectCounts.glints
-      );
-
-      const particleStats = this.zombieManager.getBloodParticleSystem().getStats();
-      PerformanceMonitor.trackEntityCount('particles', particleStats.activeParticles);
-
-      const corpseManager = this.zombieManager.getCorpseManager();
-      PerformanceMonitor.trackEntityCount('corpses', corpseManager.getCorpseCount());
-
-      const resourceState = ResourceCleanupManager.getState();
-      PerformanceMonitor.trackEntityCount('persistentEffects', resourceState.persistentEffects);
-
-      PerformanceMonitor.checkEntityThresholds();
-      PerformanceMonitor.trackMemoryUsage();
+      trackFrameTelemetry({
+        zombieManager: this.zombieManager,
+        towerPlacementManager: this.towerPlacementManager,
+        projectileManager: this.projectileManager,
+        effectManager: this.effectManager,
+      });
     }
 
     PerformanceMonitor.endFrame();
