@@ -68,7 +68,8 @@ export class TransientEffects {
       if (i > 0 && i < segments) {
         const perpX = -(endY - startY);
         const perpY = endX - startX;
-        const length = Math.sqrt(perpX * perpX + perpY * perpY);
+        // Identical endpoints (stacked zombies) give a zero-length line; avoid NaN offsets
+        const length = Math.sqrt(perpX * perpX + perpY * perpY) || 1;
         const normalizedPerpX = perpX / length;
         const normalizedPerpY = perpY / length;
 
@@ -139,7 +140,8 @@ export class TransientEffects {
     // Calculate distance and angle
     const dx = endX - startX;
     const dy = endY - startY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    // Guard zero length (target on top of the nozzle) so the cone offsets never become NaN
+    const distance = Math.sqrt(dx * dx + dy * dy) || 1;
 
     // Create smooth cone-shaped flame stream
     const segments = 12;

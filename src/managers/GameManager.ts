@@ -82,6 +82,8 @@ export class GameManager {
   private gameContainer: Container;
   private camera: Camera;
   private waveStartLives = 0;
+  /** Lives at the start of the current run (levels differ; used for logs and survival rate). */
+  private startingLives = 0;
 
   constructor(app: Application, deps: GameManagerDeps = {}) {
     this.app = app;
@@ -276,6 +278,7 @@ export class GameManager {
       this.spawnTestTowers();
     }
 
+    this.startingLives = this.lives;
     this.waveStartLives = this.lives;
     // Own startWave; WAVE_START is notification-only for analytics
     this.zombieManager.startWave();
@@ -337,6 +340,8 @@ export class GameManager {
     }
 
     this.prepareWaveOverridesForLevel('');
+    // No level owns this map: don't let the previous level's id/totalWaves leak into this run
+    this.levelManager.clearCurrentLevel();
     this.resetRunState();
 
     this.visualMapRenderer?.renderMap(mapName);
@@ -475,9 +480,7 @@ export class GameManager {
       highestWave: this.getWave(),
       finalMoney: this.getMoney(),
       finalLives: this.lives,
-      startLives: DebugConstants.ENABLED
-        ? DebugConstants.STARTING_LIVES
-        : GameConfig.STARTING_LIVES,
+      startLives: this.startingLives > 0 ? this.startingLives : this.lives,
       balanceData,
     });
   }
@@ -562,6 +565,11 @@ export class GameManager {
 
   public getMoney(): number {
     return this.economyState.getMoney();
+  }
+
+  /** Lives the current run began with (0 before any run). */
+  public getStartingLives(): number {
+    return this.startingLives;
   }
 
   public getLives(): number {
@@ -828,6 +836,14 @@ export class GameManager {
   }
 
   public startNextWave(): void {
+    // A finished run (won or lost) must not start another wave via debug hotkeys / dev API
+    if (
+      this.currentState === GameConfig.GAME_STATES.VICTORY ||
+      this.currentState === GameConfig.GAME_STATES.GAME_OVER
+    ) {
+      return;
+    }
+
     this.waveManager.nextWave();
     ResourceCleanupManager.cleanupWaveResources({
       projectileManager: this.projectileManager,

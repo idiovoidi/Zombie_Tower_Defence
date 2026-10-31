@@ -178,6 +178,11 @@ export class LevelManager {
     return true;
   }
 
+  /** Forget the active level (e.g. a run started from a bare map that no level owns). */
+  public clearCurrentLevel(): void {
+    this.currentLevel = '';
+  }
+
   public getCurrentLevel(): LevelData | undefined {
     return this.levels.get(this.currentLevel);
   }

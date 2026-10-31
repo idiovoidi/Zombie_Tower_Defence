@@ -12,6 +12,8 @@ export interface IGameStateProvider {
   getLives(): number;
   getWave(): number;
   getCurrentState(): string;
+  /** Lives the current run began with (levels differ). Optional for lightweight test doubles. */
+  getStartingLives?(): number;
 }
 
 /**

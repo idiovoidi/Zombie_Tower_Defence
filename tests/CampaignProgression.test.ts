@@ -97,4 +97,12 @@ describe('campaign progression (debug off)', () => {
     }
     expect(lm.getLevel('level6')?.totalWaves).toBeUndefined();
   });
+
+  test('clearCurrentLevel forgets the active level so a bare-map run cannot inherit it', () => {
+    const { lm } = makeManager();
+    expect(lm.loadLevel('level1')).toBe(true);
+    expect(lm.getCurrentLevel()?.id).toBe('level1');
+    lm.clearCurrentLevel();
+    expect(lm.getCurrentLevel()).toBeUndefined();
+  });
 });
