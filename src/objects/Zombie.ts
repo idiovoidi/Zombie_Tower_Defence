@@ -25,7 +25,12 @@ import {
   shouldShowHealthBar,
 } from './zombies/HealthBarSpec';
 import { KnockbackState } from './zombies/KnockbackState';
-import { getKnockbackResistance, getSwayAmplitude } from './zombies/ZombieTypeTraits';
+import { LaneOffset } from './zombies/LaneOffset';
+import {
+  getKnockbackResistance,
+  getLaneSpread,
+  getSwayAmplitude,
+} from './zombies/ZombieTypeTraits';
 
 export class Zombie extends GameObject {
   private type: string;
@@ -57,6 +62,7 @@ export class Zombie extends GameObject {
   private deathAnimationComplete = false; // Track if animation finished
 
   private knockback = new KnockbackState();
+  private lane = new LaneOffset();
   private burn = new BurnState();
 
   constructor(type: string, x: number, y: number, wave: number) {
@@ -95,6 +101,8 @@ export class Zombie extends GameObject {
     this.isSlowed = false;
     this.currentSlowPercent = 0;
     this.knockback.reset();
+    this.lane.reset(getLaneSpread(this.type));
+    this.pivot.set(0, 0);
     this.visible = true;
     this.alpha = 1;
     this.scale.set(1);
@@ -358,6 +366,10 @@ export class Zombie extends GameObject {
 
     this.position.x += moveX + perpX * staggerLean * dt;
     this.position.y += moveY + perpY * staggerLean * dt;
+
+    // Render-only lane offset (pivot shifts the sprite, not the logical position)
+    const lane = this.lane.update(normalizedDx, normalizedDy, dt);
+    this.pivot.set(-lane.x, -lane.y);
 
     // Update transform component to stay in sync
     this.transformComponent.setPosition(this.position.x, this.position.y);

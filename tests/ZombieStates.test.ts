@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { BurnState } from '../src/objects/zombies/BurnState';
 import { KnockbackState } from '../src/objects/zombies/KnockbackState';
+import { LaneOffset } from '../src/objects/zombies/LaneOffset';
 import { getKnockbackResistance, getSwayAmplitude } from '../src/objects/zombies/ZombieTypeTraits';
 
 describe('ZombieTypeTraits', () => {
@@ -120,5 +121,50 @@ describe('BurnState', () => {
     b.reset();
     expect(b.isBurning).toBe(false);
     expect(b.exposureProgress).toBe(0);
+  });
+});
+
+describe('LaneOffset', () => {
+  test('lane stays within the spread and is stable per zombie', () => {
+    const lane = new LaneOffset();
+    lane.reset(9, () => 0.75); // rand -> (0.75*2-1)*9 = 4.5
+    expect(lane.getLane()).toBeCloseTo(4.5);
+    lane.reset(9, () => 0);
+    expect(lane.getLane()).toBeCloseTo(-9);
+    lane.reset(9, () => 1);
+    expect(lane.getLane()).toBeCloseTo(9);
+  });
+
+  test('zero spread (Boss) keeps the zombie centred', () => {
+    const lane = new LaneOffset();
+    lane.reset(0, () => 0.9);
+    expect(lane.update(1, 0, 0.016)).toEqual({ x: -0, y: 0 });
+  });
+
+  test('offset is perpendicular to travel: moving right shifts vertically, moving down shifts horizontally', () => {
+    const lane = new LaneOffset();
+    lane.reset(10, () => 1); // lane = +10
+    const right = lane.update(1, 0, 0.016);
+    expect(right.x).toBeCloseTo(0);
+    expect(right.y).toBeCloseTo(10);
+
+    const down = new LaneOffset();
+    down.reset(10, () => 1);
+    const o = down.update(0, 1, 0.016);
+    expect(o.x).toBeCloseTo(-10);
+    expect(o.y).toBeCloseTo(0);
+  });
+
+  test('turning corners eases the offset instead of snapping', () => {
+    const lane = new LaneOffset();
+    lane.reset(10, () => 1);
+    lane.update(1, 0, 0.016); // heading right: offset ~ (0, 10)
+    const first = lane.update(0, 1, 0.016); // now heading down: target (-10, 0)
+    expect(first.y).toBeGreaterThan(0); // not yet fully swung round
+    expect(first.x).toBeLessThan(0);
+    let o = first;
+    for (let i = 0; i < 60; i++) o = lane.update(0, 1, 0.016);
+    expect(o.x).toBeCloseTo(-10, 1);
+    expect(o.y).toBeCloseTo(0, 1);
   });
 });

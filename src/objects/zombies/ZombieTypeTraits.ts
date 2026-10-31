@@ -29,6 +29,27 @@ const SWAY_AMPLITUDE: Readonly<Record<string, number>> = {
 };
 const DEFAULT_SWAY_AMPLITUDE = 8;
 
+/**
+ * How far (px, each side) a zombie may sit from the road centreline when rendered. Small
+ * zombies spread widest; the largest sprites stay centred so they still read as the road's focus.
+ */
+const LANE_SPREAD: Readonly<Record<string, number>> = {
+  [T.BASIC]: 9,
+  [T.FAST]: 9,
+  [T.SWARM]: 11,
+  [T.STEALTH]: 9,
+  [T.ARMORED]: 7,
+  [T.MECHANICAL]: 7,
+  [T.TANK]: 5,
+  [T.NECRO_TANK]: 0,
+  [T.BOSS]: 0,
+};
+const DEFAULT_LANE_SPREAD = 8;
+
+export function getLaneSpread(zombieType: string): number {
+  return LANE_SPREAD[zombieType] ?? DEFAULT_LANE_SPREAD;
+}
+
 export function getKnockbackResistance(zombieType: string): number {
   return KNOCKBACK_RESISTANCE[zombieType] ?? DEFAULT_KNOCKBACK_RESISTANCE;
 }
