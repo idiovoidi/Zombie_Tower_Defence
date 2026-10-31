@@ -22,6 +22,19 @@ export class WaveManager {
   /** Multiplier on authored spawn intervals (wider spacing between zombies). */
   public static readonly SPAWN_INTERVAL_SCALE = 2;
 
+  /**
+   * Level difficulty -> horde pressure. Scales zombie counts up and spawn intervals down
+   * (harder = more zombies, arriving closer together). Independent of the adaptive modifier.
+   */
+  public static readonly DIFFICULTY_SCALE: Readonly<
+    Record<'Easy' | 'Normal' | 'Hard' | 'Nightmare', number>
+  > = {
+    Easy: 0.9,
+    Normal: 1.0,
+    Hard: 1.1,
+    Nightmare: 1.2,
+  };
+
   private currentWave: number;
   private waveData: Map<number, ZombieGroup[]>;
   /** Sparse per-wave overrides from custom maps; null means use built-in table. */
@@ -32,6 +45,8 @@ export class WaveManager {
     resourceEfficiency: number;
   };
   private difficultyModifier: number;
+  /** Per-level pressure from the level's difficulty label (1 = Normal). */
+  private baseDifficulty = 1.0;
 
   constructor() {
     this.currentWave = 1;
@@ -681,6 +696,15 @@ export class WaveManager {
     }
   }
 
+  /** Set the level's base difficulty (see DIFFICULTY_SCALE). Survives reset(). */
+  public setBaseDifficulty(scale: number): void {
+    this.baseDifficulty = scale > 0 ? scale : 1.0;
+  }
+
+  public getBaseDifficulty(): number {
+    return this.baseDifficulty;
+  }
+
   // Get difficulty modifier
   public getDifficultyModifier(): number {
     return this.difficultyModifier;
@@ -692,7 +716,8 @@ export class WaveManager {
     const isElite = WaveManager.isEliteZombieType(type);
     const decayBase = isElite ? 0.98 : 0.95;
     const minInterval = isElite ? 4.0 : 0.5;
-    const scaledInterval = baseInterval * decayBase ** wave * this.difficultyModifier;
+    const scaledInterval =
+      (baseInterval * decayBase ** wave * this.difficultyModifier) / this.baseDifficulty;
     // ZOMBIE_SPAWN_RATE_MULTIPLIER: lower = fewer spawns (longer interval)
     const debugFactor =
       DebugConstants.ENABLED && DebugConstants.ZOMBIE_SPAWN_RATE_MULTIPLIER > 0
@@ -716,7 +741,7 @@ export class WaveManager {
       );
     }
 
-    let count = baseCount * 1.08 ** wave * this.difficultyModifier;
+    let count = baseCount * 1.08 ** wave * this.difficultyModifier * this.baseDifficulty;
 
     // 20% spikes every 5 waves
     if (wave % 5 === 0) {

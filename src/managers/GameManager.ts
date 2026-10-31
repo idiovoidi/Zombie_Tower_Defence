@@ -245,6 +245,7 @@ export class GameManager {
 
   /** Shared start-of-run reset: clears state, restarts analytics and the wave counter. */
   private resetRunState(): void {
+    this.waveManager.setBaseDifficulty(1);
     this.clearGameState();
     EffectCleanupManager.clearAll();
     LogExporter.newSession();
@@ -288,6 +289,7 @@ export class GameManager {
     }
 
     this.resetRunState();
+    this.waveManager.setBaseDifficulty(WaveManager.DIFFICULTY_SCALE[level.difficulty] ?? 1);
 
     if (!DebugConstants.ENABLED) {
       this.economyState.reset(level.startingMoney);
