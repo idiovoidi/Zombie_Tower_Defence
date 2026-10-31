@@ -1,5 +1,6 @@
 import type { Graphics } from 'pixi.js';
 import { GRAVEYARD_DETAILS } from '../../config/visualConstants';
+import { createSeededRandom } from '../../utils/seededRandom';
 
 interface Gravestone {
   x: number;
@@ -1030,15 +1031,4 @@ export class GraveyardRenderer {
     this.graphics.rect(x - 2, y + 3.5, 1.2, 4.5).fill(GRAVEYARD_DETAILS.BONES_COLOR);
     this.graphics.rect(x, y + 5, 1, 3).fill(GRAVEYARD_DETAILS.BONES_COLOR);
   }
-}
-
-function createSeededRandom(seed: number): () => number {
-  let s = seed % 2147483647;
-  if (s <= 0) {
-    s += 2147483646;
-  }
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
 }
