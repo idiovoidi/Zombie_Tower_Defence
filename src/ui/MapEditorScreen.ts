@@ -10,6 +10,7 @@ import {
   removeLastWaypoint,
   validateCustomMap,
 } from '../customMaps';
+import { pickJsonFileText } from '../customMaps/pickJsonFile';
 import type { ZombieGroup } from '../managers/WaveManager';
 import { UIComponent } from './UIComponent';
 
@@ -521,37 +522,9 @@ export class MapEditorScreen extends UIComponent {
     }
   }
 
-  private pickAndImport(): Promise<CustomMapDocument | null> {
-    return new Promise((resolve, reject) => {
-      if (typeof document === 'undefined') {
-        resolve(null);
-        return;
-      }
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'application/json,.json';
-      input.style.display = 'none';
-      input.addEventListener('change', () => {
-        const file = input.files?.[0];
-        document.body.removeChild(input);
-        if (!file) {
-          resolve(null);
-          return;
-        }
-        file
-          .text()
-          .then(text => {
-            try {
-              resolve(customMapStore.importFromJson(text, { newId: true }));
-            } catch (err) {
-              reject(err);
-            }
-          })
-          .catch(reject);
-      });
-      document.body.appendChild(input);
-      input.click();
-    });
+  private async pickAndImport(): Promise<CustomMapDocument | null> {
+    const text = await pickJsonFileText();
+    return text === null ? null : customMapStore.importFromJson(text, { newId: true });
   }
 
   private playDoc(): void {

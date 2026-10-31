@@ -1,3 +1,4 @@
+import { pickJsonFileText } from './pickJsonFile';
 import { type CustomMapDocument, createEmptyCustomMapDocument } from './types';
 import { assertValidCustomMap, validateCustomMap } from './validateCustomMap';
 
@@ -119,36 +120,8 @@ export class CustomMapStore {
   public async importFromFilePicker(options?: {
     newId?: boolean;
   }): Promise<CustomMapDocument | null> {
-    if (typeof document === 'undefined') {
-      return null;
-    }
-
-    return new Promise((resolve, reject) => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'application/json,.json';
-      input.style.display = 'none';
-      input.addEventListener('change', () => {
-        const file = input.files?.[0];
-        document.body.removeChild(input);
-        if (!file) {
-          resolve(null);
-          return;
-        }
-        file
-          .text()
-          .then(text => {
-            try {
-              resolve(this.importFromJson(text, options));
-            } catch (err) {
-              reject(err);
-            }
-          })
-          .catch(reject);
-      });
-      document.body.appendChild(input);
-      input.click();
-    });
+    const text = await pickJsonFileText();
+    return text === null ? null : this.importFromJson(text, options);
   }
 
   public tryParse(

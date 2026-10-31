@@ -324,14 +324,8 @@ export function createUI(
   return ui;
 }
 
-/**
- * Push money/lives/wave/next-wave UI from game state (also used after level start).
- */
-export function syncGameHud(gameManager: GameManager, ui: UIContext): void {
-  const money = gameManager.getMoney();
-  ui.bottomBar.updateMoney(money);
-  ui.bottomBar.updateLives(gameManager.getLives());
-  ui.bottomBar.updateWave(gameManager.getWave());
+/** Update everything that depends on the player's current money. */
+function refreshMoneyDependents(gameManager: GameManager, ui: UIContext, money: number): void {
   ui.towerShop.updateAffordability(money);
   ui.campUpgradePanel.setMoneyAvailable(money);
 
@@ -340,6 +334,17 @@ export function syncGameHud(gameManager: GameManager, ui: UIContext): void {
     const { affordable } = canAffordSelectedTower(ui.towerShop, gameManager);
     placementManager.setCanAfford(affordable);
   }
+}
+
+/**
+ * Push money/lives/wave/next-wave UI from game state (also used after level start).
+ */
+export function syncGameHud(gameManager: GameManager, ui: UIContext): void {
+  const money = gameManager.getMoney();
+  ui.bottomBar.updateMoney(money);
+  ui.bottomBar.updateLives(gameManager.getLives());
+  ui.bottomBar.updateWave(gameManager.getWave());
+  refreshMoneyDependents(gameManager, ui, money);
 
   if (gameManager.getCurrentState() === GameConfig.GAME_STATES.WAVE_COMPLETE) {
     ui.bottomBar.showNextWaveButton();
@@ -357,14 +362,7 @@ export function bindGameHudEvents(gameManager: GameManager, ui: UIContext): void
   const refreshMoney = (): void => {
     const money = gameManager.getMoney();
     ui.bottomBar.updateMoney(money);
-    ui.towerShop.updateAffordability(money);
-    ui.campUpgradePanel.setMoneyAvailable(money);
-
-    const placementManager = gameManager.getTowerPlacementManager();
-    if (placementManager.isInPlacementMode()) {
-      const { affordable } = canAffordSelectedTower(ui.towerShop, gameManager);
-      placementManager.setCanAfford(affordable);
-    }
+    refreshMoneyDependents(gameManager, ui, money);
   };
 
   const refreshLives = (): void => {

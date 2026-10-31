@@ -16,6 +16,30 @@ export interface RegisterCustomMapOptions {
   applyWaves?: boolean;
 }
 
+function buildMapData(doc: CustomMapDocument, mapName: string): MapData {
+  const waypoints = doc.map.waypoints.map(wp => ({ x: wp.x, y: wp.y }));
+  return {
+    name: mapName,
+    width: doc.map.width,
+    height: doc.map.height,
+    waypoints,
+    pathGraph: pathGraphFromWaypoints(waypoints),
+  };
+}
+
+function buildLevelData(doc: CustomMapDocument, levelId: string, mapName: string): LevelData {
+  return {
+    id: levelId,
+    name: doc.name,
+    description: doc.description || 'Custom map',
+    map: mapName,
+    difficulty: doc.level.difficulty,
+    startingMoney: doc.level.startingMoney,
+    startingLives: doc.level.startingLives,
+    resourceModifiers: { wood: 1, metal: 1, energy: 1 },
+  };
+}
+
 /**
  * Register a custom map document into gameplay managers.
  * Returns the level id used by LevelManager / startGameWithLevel.
@@ -31,27 +55,8 @@ export function registerCustomMap(
   const levelId = customLevelId(doc.id);
   const applyWaves = options?.applyWaves !== false;
 
-  const waypoints = doc.map.waypoints.map(wp => ({ x: wp.x, y: wp.y }));
-  const mapData: MapData = {
-    name: mapName,
-    width: doc.map.width,
-    height: doc.map.height,
-    waypoints,
-    pathGraph: pathGraphFromWaypoints(waypoints),
-  };
-  managers.mapManager.registerMap(mapData);
-
-  const levelData: LevelData = {
-    id: levelId,
-    name: doc.name,
-    description: doc.description || 'Custom map',
-    map: mapName,
-    difficulty: doc.level.difficulty,
-    startingMoney: doc.level.startingMoney,
-    startingLives: doc.level.startingLives,
-    resourceModifiers: { wood: 1, metal: 1, energy: 1 },
-  };
-  managers.levelManager.registerLevel(levelData, { unlock: true });
+  managers.mapManager.registerMap(buildMapData(doc, mapName));
+  managers.levelManager.registerLevel(buildLevelData(doc, levelId, mapName), { unlock: true });
 
   if (applyWaves) {
     const overrides = new Map<number, ZombieGroup[]>();
@@ -80,28 +85,8 @@ export function syncCustomMapsToManagers(
     const mapName = customMapKey(doc.id);
     const levelId = customLevelId(doc.id);
 
-    const waypoints = doc.map.waypoints.map(wp => ({ x: wp.x, y: wp.y }));
-    managers.mapManager.registerMap({
-      name: mapName,
-      width: doc.map.width,
-      height: doc.map.height,
-      waypoints,
-      pathGraph: pathGraphFromWaypoints(waypoints),
-    });
-
-    managers.levelManager.registerLevel(
-      {
-        id: levelId,
-        name: doc.name,
-        description: doc.description || 'Custom map',
-        map: mapName,
-        difficulty: doc.level.difficulty,
-        startingMoney: doc.level.startingMoney,
-        startingLives: doc.level.startingLives,
-        resourceModifiers: { wood: 1, metal: 1, energy: 1 },
-      },
-      { unlock: true }
-    );
+    managers.mapManager.registerMap(buildMapData(doc, mapName));
+    managers.levelManager.registerLevel(buildLevelData(doc, levelId, mapName), { unlock: true });
   }
 }
 

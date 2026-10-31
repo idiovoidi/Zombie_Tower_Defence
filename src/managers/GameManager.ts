@@ -241,18 +241,8 @@ export class GameManager {
     PerformanceMonitor.recordWaveMemory(this.getWave());
   }
 
-  public startGameWithLevel(levelId: string): void {
-    this.prepareWaveOverridesForLevel(levelId);
-
-    if (!this.levelManager.loadLevel(levelId)) {
-      return;
-    }
-
-    const level = this.levelManager.getCurrentLevel();
-    if (!level) {
-      return;
-    }
-
+  /** Shared start-of-run reset: clears state, restarts analytics and the wave counter. */
+  private resetRunState(): void {
     this.clearGameState();
     EffectCleanupManager.clearAll();
     LogExporter.newSession();
@@ -262,14 +252,10 @@ export class GameManager {
 
     this.score = 0;
     this.waveManager.reset(this.getStartingWave());
+  }
 
-    if (!DebugConstants.ENABLED) {
-      this.economyState.reset(level.startingMoney);
-      this.lives = level.startingLives;
-    }
-    this.visualMapRenderer?.renderMap(level.map);
-    this.syncCameraToCurrentMap();
-
+  /** Shared end-of-setup: enter PLAYING, start tracking, seed towers, kick off wave 1. */
+  private launchRun(): void {
     this.currentState = GameConfig.GAME_STATES.PLAYING;
 
     const aiEnabled = this.analyticsState.getAIPlayerManager().isEnabled();
@@ -285,6 +271,30 @@ export class GameManager {
     // Own startWave; WAVE_START is notification-only for analytics
     this.zombieManager.startWave();
     this.eventBus.emit(GameEvents.WAVE_START, { wave: this.getWave() });
+  }
+
+  public startGameWithLevel(levelId: string): void {
+    this.prepareWaveOverridesForLevel(levelId);
+
+    if (!this.levelManager.loadLevel(levelId)) {
+      return;
+    }
+
+    const level = this.levelManager.getCurrentLevel();
+    if (!level) {
+      return;
+    }
+
+    this.resetRunState();
+
+    if (!DebugConstants.ENABLED) {
+      this.economyState.reset(level.startingMoney);
+      this.lives = level.startingLives;
+    }
+    this.visualMapRenderer?.renderMap(level.map);
+    this.syncCameraToCurrentMap();
+
+    this.launchRun();
   }
 
   /**
@@ -304,34 +314,12 @@ export class GameManager {
     }
 
     this.prepareWaveOverridesForLevel('');
-    this.clearGameState();
-    EffectCleanupManager.clearAll();
-    LogExporter.newSession();
-
-    this.analyticsState.getBalanceTrackingManager().reset();
-    this.analyticsState.getBalanceTrackingManager().enable();
-
-    this.score = 0;
-    this.waveManager.reset(this.getStartingWave());
+    this.resetRunState();
 
     this.visualMapRenderer?.renderMap(mapName);
     this.syncCameraToCurrentMap();
 
-    this.currentState = GameConfig.GAME_STATES.PLAYING;
-
-    const aiEnabled = this.analyticsState.getAIPlayerManager().isEnabled();
-    this.analyticsState.getStatTracker().startTracking(aiEnabled);
-
-    this.spawnStarterTower();
-
-    if (DevConfig.TESTING?.SPAWN_TEST_TOWERS) {
-      this.spawnTestTowers();
-    }
-
-    this.waveStartLives = this.lives;
-    // Own startWave; WAVE_START is notification-only for analytics
-    this.zombieManager.startWave();
-    this.eventBus.emit(GameEvents.WAVE_START, { wave: this.getWave() });
+    this.launchRun();
     return true;
   }
 
