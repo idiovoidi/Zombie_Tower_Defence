@@ -163,10 +163,9 @@ export class CampPropsRenderer {
       g.rect(x - 0.5, y + 3, 15, 2).fill({ color: COLORS.CAMP_CRATE_BAND, alpha: 0.7 });
     };
 
-    drawCrate(campX - 56, campY - 50);
-    drawCrate(campX - 56, campY - 34);
-    drawCrate(campX - 40, campY - 50);
-    drawCrate(campX + 40, campY - 48);
+    // Two crates beside the picnic table, clear of the sign, tents and fence
+    drawCrate(campX + 19, campY + 6);
+    drawCrate(campX + 33, campY + 6);
   }
 
   private renderWatchtower(campX: number, campY: number): void {
@@ -359,17 +358,17 @@ export class CampPropsRenderer {
       .stroke({ width: 1, color: COLORS.CAMP_BACKPACK_OUTLINE });
     g.rect(campX - 27, campY, 5, 2).fill({ color: COLORS.CAMP_BACKPACK_OUTLINE, alpha: 0.6 });
     // Boots
-    g.roundRect(campX + 18, campY - 4, 5, 7, 1).fill(COLORS.CAMP_BOOTS);
-    g.roundRect(campX + 25, campY - 4, 5, 7, 1).fill(COLORS.CAMP_BOOTS);
-    g.rect(campX + 18, campY + 2, 5, 1.5).fill(COLORS.CAMP_GROUND_DARK);
-    g.rect(campX + 25, campY + 2, 5, 1.5).fill(COLORS.CAMP_GROUND_DARK);
-    // Guitar
-    g.ellipse(campX - 32, campY - 32, 4.5, 6.5).fill(COLORS.CAMP_GUITAR_BODY);
-    g.rect(campX - 33, campY - 40, 2, 14).fill(COLORS.CAMP_GUITAR_NECK);
-    g.circle(campX - 32, campY - 32, 1.5).fill({ color: COLORS.CAMP_GROUND_DARK, alpha: 0.5 });
-    // Helmet on crate
-    g.ellipse(campX - 48, campY - 52, 4, 2.5).fill(COLORS.CAMP_FENCE);
-    g.ellipse(campX - 48, campY - 53, 3, 1.5).fill(COLORS.CAMP_FENCE_BAR);
+    g.roundRect(campX + 18, campY - 6, 5, 7, 1).fill(COLORS.CAMP_BOOTS);
+    g.roundRect(campX + 25, campY - 6, 5, 7, 1).fill(COLORS.CAMP_BOOTS);
+    g.rect(campX + 18, campY, 5, 1.5).fill(COLORS.CAMP_GROUND_DARK);
+    g.rect(campX + 25, campY, 5, 1.5).fill(COLORS.CAMP_GROUND_DARK);
+    // Guitar lying by the backpack
+    g.ellipse(campX - 38, campY + 4, 6.5, 4.5).fill(COLORS.CAMP_GUITAR_BODY);
+    g.rect(campX - 46, campY + 2.5, 8, 2).fill(COLORS.CAMP_GUITAR_NECK);
+    g.circle(campX - 38, campY + 4, 1.5).fill({ color: COLORS.CAMP_GROUND_DARK, alpha: 0.5 });
+    // Helmet on a crate
+    g.ellipse(campX + 26, campY + 5, 4, 2.5).fill(COLORS.CAMP_FENCE);
+    g.ellipse(campX + 26, campY + 4, 3, 1.5).fill(COLORS.CAMP_FENCE_BAR);
   }
 
   private renderMemorial(campX: number, campY: number): void {

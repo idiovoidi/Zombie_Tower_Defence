@@ -4,6 +4,13 @@ import { createSeededRandom } from '../../utils/seededRandom';
 import { GravestoneRenderer } from './GravestoneRenderer';
 import { GraveyardFenceRenderer } from './GraveyardFenceRenderer';
 
+/** Open graves the zombies climb out of, relative to the graveyard origin (pit centres). */
+const PITS = [
+  { x: 38, y: 122 },
+  { x: 38, y: 168 },
+  { x: 74, y: 145 },
+];
+
 /**
  * GraveyardRenderer
  *
@@ -53,7 +60,6 @@ export class GraveyardRenderer {
     this.renderGraveyardGround();
     this.renderInnerPath();
     this.renderDeadGrassPatches();
-    this.renderDisturbedEarth();
     this.renderBonesAndDebris();
     this.renderDarkStains();
     this.fence.render(this.rand);
@@ -80,25 +86,24 @@ export class GraveyardRenderer {
   }
 
   private renderInnerPath(): void {
-    // Worn dirt walkway leading to the gate
-    const pathX = this.graveyardX + this.graveyardWidth * 0.55;
-    const pathW = 18;
+    // Worn walkway from the open graves out through the gate, where the zombies leave
+    const pathY = this.graveyardY + 136;
+    const pathH = 22;
+    const startX = this.graveyardX + 60;
+    const len = this.graveyardWidth - 60;
     this.graphics
-      .rect(pathX, this.graveyardY + 20, pathW, this.graveyardHeight - 40)
-      .fill({ color: GRAVEYARD_DETAILS.PATH_COLOR, alpha: 0.55 });
+      .rect(startX, pathY, len, pathH)
+      .fill({ color: GRAVEYARD_DETAILS.PATH_COLOR, alpha: 0.6 });
     this.graphics
-      .rect(pathX - 2, this.graveyardY + 20, 2, this.graveyardHeight - 40)
-      .fill({ color: GRAVEYARD_DETAILS.PATH_EDGE_COLOR, alpha: 0.4 });
+      .rect(startX, pathY - 2, len, 2)
+      .fill({ color: GRAVEYARD_DETAILS.PATH_EDGE_COLOR, alpha: 0.45 });
     this.graphics
-      .rect(pathX + pathW, this.graveyardY + 20, 2, this.graveyardHeight - 40)
-      .fill({ color: GRAVEYARD_DETAILS.PATH_EDGE_COLOR, alpha: 0.4 });
-
-    // Foot scuffs
-    for (let i = 0; i < 8; i++) {
-      const fy = this.graveyardY + 40 + i * 28 + this.rand() * 6;
+      .rect(startX, pathY + pathH, len, 2)
+      .fill({ color: GRAVEYARD_DETAILS.PATH_EDGE_COLOR, alpha: 0.45 });
+    for (let i = 0; i < 6; i++) {
       this.graphics
-        .ellipse(pathX + 5 + this.rand() * 8, fy, 3, 2)
-        .fill({ color: 0x1a1208, alpha: 0.35 });
+        .ellipse(startX + 10 + i * 14 + this.rand() * 4, pathY + 5 + this.rand() * 12, 3, 2)
+        .fill({ color: 0x1a1208, alpha: 0.3 });
     }
   }
 
@@ -177,9 +182,11 @@ export class GraveyardRenderer {
   }
 
   private renderBonesAndDebris(): void {
-    for (let i = 0; i < GRAVEYARD_DETAILS.BONES_COUNT; i++) {
-      const x = this.graveyardX + 10 + this.rand() * (this.graveyardWidth - 20);
-      const y = this.graveyardY + 10 + this.rand() * (this.graveyardHeight - 20);
+    for (let i = 0; i < 10; i++) {
+      // Debris clusters around the open graves, where the dead climbed out
+      const pit = PITS[i % PITS.length];
+      const x = this.graveyardX + pit.x + (this.rand() - 0.5) * 56;
+      const y = this.graveyardY + pit.y + (this.rand() - 0.5) * 40;
       const kind = this.rand();
 
       if (kind < 0.35) {
@@ -221,7 +228,7 @@ export class GraveyardRenderer {
     }
 
     // Coffin plank fragments
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 0; i++) {
       const x = this.graveyardX + 15 + this.rand() * (this.graveyardWidth - 30);
       const y = this.graveyardY + 30 + this.rand() * (this.graveyardHeight - 60);
       this.graphics
@@ -231,7 +238,7 @@ export class GraveyardRenderer {
   }
 
   private renderDarkStains(): void {
-    for (let i = 0; i < GRAVEYARD_DETAILS.STAINS_COUNT; i++) {
+    for (let i = 0; i < 6; i++) {
       const x = this.graveyardX + this.rand() * this.graveyardWidth;
       const y = this.graveyardY + this.rand() * this.graveyardHeight;
       const size =
@@ -248,8 +255,8 @@ export class GraveyardRenderer {
 
   private renderProps(): void {
     // Rusted shovel stuck in the ground
-    const shovelX = this.graveyardX + 48;
-    const shovelY = this.graveyardY + 140;
+    const shovelX = this.graveyardX + 22;
+    const shovelY = this.graveyardY + 134;
     this.graphics
       .moveTo(shovelX, shovelY)
       .lineTo(shovelX - 2, shovelY - 22)
@@ -265,16 +272,16 @@ export class GraveyardRenderer {
       .fill({ color: GRAVEYARD_DETAILS.RUST_COLOR, alpha: 0.7 });
 
     // Wilted wreath near a stone
-    const wx = this.graveyardX + 100;
-    const wy = this.graveyardY + 90;
+    const wx = this.graveyardX + 66;
+    const wy = this.graveyardY + 76;
     this.graphics.circle(wx, wy, 6).stroke({ width: 2, color: 0x3a4a2a, alpha: 0.7 });
     this.graphics.circle(wx, wy, 4).stroke({ width: 1, color: 0x5a2a2a, alpha: 0.5 });
   }
 
   private renderDeadTrees(): void {
-    this.renderDeadTree(this.graveyardX + 25, this.graveyardY + 180, 1.0);
-    this.renderDeadTree(this.graveyardX + 115, this.graveyardY + 220, 0.85);
-    this.renderDeadTree(this.graveyardX + 55, this.graveyardY + 55, 0.7);
+    // Corners only, so branches never cross the plots
+    this.renderDeadTree(this.graveyardX + 14, this.graveyardY + 224, 0.75);
+    this.renderDeadTree(this.graveyardX + 126, this.graveyardY + 16, 0.6);
   }
 
   private renderDeadTree(x: number, y: number, scale: number): void {
@@ -348,9 +355,10 @@ export class GraveyardRenderer {
   }
 
   private renderOpenGraves(): void {
-    this.renderOpenGrave(this.graveyardX + 70, this.graveyardY + 120);
-    this.renderOpenGrave(this.graveyardX + 110, this.graveyardY + 160);
-    this.renderOpenGrave(this.graveyardX + 42, this.graveyardY + 200);
+    // The three spawn pits; (x, y) here is the pit centre minus the mound offset
+    for (const pit of PITS) {
+      this.renderOpenGrave(this.graveyardX + pit.x, this.graveyardY + pit.y - 10);
+    }
   }
 
   private renderOpenGrave(x: number, y: number): void {

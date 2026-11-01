@@ -28,39 +28,43 @@ export class GravestoneRenderer {
   }
 
   private renderGravestones(): void {
-    const gravestones: Gravestone[] = [
-      { x: 40, y: 280, type: 'cross', size: 12, tilt: 0.1 },
-      { x: 70, y: 275, type: 'headstone', size: 14, tilt: -0.08 },
-      { x: 100, y: 285, type: 'cross', size: 10, tilt: 0.15 },
-      { x: 130, y: 280, type: 'headstone', size: 13, tilt: -0.12 },
+    // Three tidy columns, three rows above and three below the spawn clearing in the middle.
+    // Marker type follows a fixed pattern, so the plots read as an old, regimented cemetery that
+    // has since been disturbed (a couple of fallen and tilted stones), not random scatter.
+    const columns = [52, 86, 120];
+    const rows = [272, 304, 336, 446, 478, 510];
+    const kinds = ['cross', 'headstone', 'headstone', 'cross', 'monument', 'headstone'];
+    const gravestones: Gravestone[] = [];
+    rows.forEach((y, row) => {
+      columns.forEach((x, col) => {
+        const kind = kinds[(row + col * 2) % kinds.length];
+        const size = kind === 'monument' ? 17 : 11 + ((row * 3 + col * 5) % 4);
+        gravestones.push({
+          x,
+          y,
+          type: kind,
+          size,
+          tilt: (this.rand() - 0.5) * 0.3,
+          fallen: (row === 1 && col === 2) || (row === 4 && col === 0),
+        });
+      });
+    });
 
-      { x: 35, y: 320, type: 'headstone', size: 15, tilt: 0.2 },
-      { x: 65, y: 315, type: 'cross', size: 11, tilt: -0.1 },
-      { x: 95, y: 325, type: 'monument', size: 18, tilt: 0.05 },
-      { x: 125, y: 320, type: 'headstone', size: 12, tilt: 0.18 },
-
-      { x: 40, y: 365, type: 'cross', size: 13, tilt: -0.15 },
-      { x: 70, y: 370, type: 'headstone', size: 14, tilt: 0.1 },
-      { x: 100, y: 360, type: 'cross', size: 10, tilt: -0.2, fallen: true },
-
-      { x: 35, y: 410, type: 'headstone', size: 16, tilt: 0.12 },
-      { x: 65, y: 405, type: 'cross', size: 11, tilt: -0.08 },
-      { x: 95, y: 415, type: 'headstone', size: 13, tilt: 0.25 },
-      { x: 125, y: 410, type: 'cross', size: 12, tilt: -0.15 },
-
-      { x: 45, y: 455, type: 'monument', size: 17, tilt: 0.08 },
-      { x: 75, y: 450, type: 'headstone', size: 14, tilt: -0.1 },
-      { x: 105, y: 460, type: 'cross', size: 10, tilt: 0.15 },
-      { x: 135, y: 455, type: 'headstone', size: 13, tilt: -0.18, fallen: true },
-
-      { x: 50, y: 500, type: 'cross', size: 11, tilt: 0.2 },
-      { x: 80, y: 495, type: 'headstone', size: 12, tilt: -0.12 },
-      { x: 110, y: 505, type: 'cross', size: 10, tilt: 0.1 },
-    ];
-
+    for (const stone of gravestones) {
+      this.renderPlot(stone.x, stone.y + stone.size, stone.fallen === true);
+    }
     for (const stone of gravestones) {
       this.renderGravestone(stone.x, stone.y, stone.type, stone.size, stone.tilt, stone.fallen);
     }
+  }
+
+  /** The mound of earth a marker stands at the head of, with a small foot marker. */
+  private renderPlot(x: number, baseY: number, fallen: boolean): void {
+    const g = this.graphics;
+    const dirt = GRAVEYARD_DETAILS.DISTURBED_EARTH_COLOR;
+    g.ellipse(x, baseY + 7, 11, 5).fill({ color: dirt, alpha: fallen ? 0.7 : 0.45 });
+    g.ellipse(x - 1, baseY + 6, 8, 3.2).fill({ color: dirt, alpha: 0.35 });
+    g.rect(x - 2, baseY + 12, 4, 2).fill({ color: GRAVEYARD_DETAILS.HEADSTONE_COLOR, alpha: 0.7 });
   }
 
   private renderGravestone(
