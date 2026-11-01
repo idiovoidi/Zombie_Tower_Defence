@@ -21,32 +21,31 @@ export class HouseRenderer {
    * Render destroyed houses along the top of the map (spread across map width).
    */
   public render(mapData: MapData): void {
-    const scaleX = mapData.width / 1024;
-    const houses: Array<{
-      x: number;
-      y: number;
+    // One street: houses share a ground line and are evenly spaced, clear of the HUD panel at the
+    // top right. Only the footprint, style and damage vary between them.
+    const groundLine = 112;
+    const slots = mapData.width > 1200 ? 6 : 5;
+    const firstX = 130; // clear of the top-left HUD button
+    const lastX = mapData.width - 285; // clear of the speed-control panel
+    const pitch = (lastX - firstX) / (slots - 1);
+    const specs: Array<{
       width: number;
       height: number;
       destroyed: number;
       style: HouseStyle;
     }> = [
-      { x: 120 * scaleX, y: 20, width: 75, height: 65, destroyed: 0.8, style: 'cottage' },
-      { x: 280 * scaleX, y: 45, width: 85, height: 70, destroyed: 0.6, style: 'townhouse' },
-      { x: 480 * scaleX, y: 15, width: 70, height: 60, destroyed: 0.9, style: 'cottage' },
-      { x: 650 * scaleX, y: 35, width: 80, height: 68, destroyed: 0.7, style: 'farmhouse' },
-      { x: 920 * scaleX, y: 50, width: 72, height: 62, destroyed: 0.75, style: 'cottage' },
+      { width: 75, height: 65, destroyed: 0.8, style: 'cottage' },
+      { width: 85, height: 70, destroyed: 0.6, style: 'townhouse' },
+      { width: 72, height: 62, destroyed: 0.88, style: 'cottage' },
+      { width: 80, height: 68, destroyed: 0.7, style: 'farmhouse' },
+      { width: 74, height: 64, destroyed: 0.75, style: 'cottage' },
+      { width: 78, height: 64, destroyed: 0.7, style: 'farmhouse' },
     ];
-
-    if (mapData.width > 1200) {
-      houses.push({
-        x: mapData.width - 160,
-        y: 30,
-        width: 78,
-        height: 64,
-        destroyed: 0.7,
-        style: 'farmhouse',
-      });
-    }
+    const houses = specs.slice(0, slots).map((spec, i) => ({
+      ...spec,
+      x: firstX + i * pitch,
+      y: groundLine - spec.height,
+    }));
 
     for (const house of houses) {
       this.renderDestroyedHouse(
@@ -84,7 +83,7 @@ export class HouseRenderer {
 
     // Ground shadow for depth
     this.mapContainer
-      .ellipse(x + width * 0.5, baseY + foundationHeight + 4, width * 0.55, 10)
+      .ellipse(x + width * 0.62, baseY + foundationHeight + 3, width * 0.68, 9)
       .fill({ color: COLORS.HOUSE_SHADOW, alpha: 0.28 });
 
     // Foundation
@@ -189,20 +188,20 @@ export class HouseRenderer {
         0.5
       );
 
-      if (style === 'townhouse' || style === 'farmhouse') {
+      {
         this.drawBrickTexture(
           x + wallThickness,
           x + wallThickness + leftSectionWidth,
           baseY - frontWallHeight,
           frontWallHeight,
-          style === 'townhouse' ? 6 : 4
+          style === 'townhouse' ? 6 : style === 'farmhouse' ? 4 : 3
         );
         this.drawBrickTexture(
           rightSectionStart,
           rightSectionStart + rightSectionWidth,
           baseY - frontWallHeight,
           frontWallHeight,
-          style === 'townhouse' ? 6 : 4
+          style === 'townhouse' ? 6 : style === 'farmhouse' ? 4 : 3
         );
       }
 
@@ -335,6 +334,41 @@ export class HouseRenderer {
             .stroke({ width: 1, color: COLORS.HOUSE_CRACK, alpha: 0.45 });
         }
       }
+    }
+
+    this.drawLightingFinish(x, baseY, width, wallHeight, foundationHeight, rand);
+  }
+
+  /**
+   * Shared finishing pass so every house is lit the same way (light from the upper left):
+   * lit left edge, shaded right flank, dirt skirt and a few weeds where wall meets ground.
+   */
+  private drawLightingFinish(
+    x: number,
+    baseY: number,
+    width: number,
+    wallHeight: number,
+    foundationHeight: number,
+    rand: () => number
+  ): void {
+    const g = this.mapContainer;
+    const top = baseY - wallHeight;
+    g.rect(x + 1, top + 2, 2, wallHeight).fill({ color: 0xffffff, alpha: 0.1 });
+    g.rect(x + width * 0.68, top + wallHeight * 0.1, width * 0.32, wallHeight * 0.9).fill({
+      color: 0x000000,
+      alpha: 0.13,
+    });
+    g.rect(x - 2, baseY + foundationHeight - 2, width + 4, 2).fill({ color: 0x000000, alpha: 0.2 });
+    g.ellipse(x + width * 0.5, baseY + foundationHeight, width * 0.58, 4).fill({
+      color: 0x3a2e22,
+      alpha: 0.4,
+    });
+    for (let i = 0; i < 6; i++) {
+      const wx = x + rand() * width;
+      const wy = baseY + foundationHeight - 1;
+      g.moveTo(wx, wy)
+        .lineTo(wx + (rand() - 0.5) * 3, wy - 3 - rand() * 3)
+        .stroke({ width: 1, color: COLORS.HOUSE_MOSS, alpha: 0.7 });
     }
   }
 
