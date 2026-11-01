@@ -662,7 +662,7 @@ export const DECALS = {
   MIN_Y: 160,
 
   // Swaying leafy trees
-  TREE_COUNT: 7,
+  TREE_COUNT: 10,
   TREE_MIN_HEIGHT: 28,
   TREE_MAX_HEIGHT: 44,
   TREE_SWAY_AMPLITUDE: 3.5,
