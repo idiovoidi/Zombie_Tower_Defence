@@ -8,9 +8,11 @@ import { type CustomMapDocument, registerCustomMap } from '../customMaps';
 import type { Tower } from '../objects/Tower';
 import type { ITower } from '../objects/Tower.interface';
 import type { Zombie } from '../objects/Zombie';
+import { AmbientTintOverlay } from '../renderers/effects/AmbientTintOverlay';
 import { EffectManager } from '../renderers/effects/EffectManager';
-import { VignetteOverlay } from '../renderers/effects/VignetteOverlay';
 import type { SludgePoolEffect } from '../renderers/effects/SludgePoolEffect';
+import { VignetteOverlay } from '../renderers/effects/VignetteOverlay';
+import { lightingManager } from '../renderers/lighting/LightingManager';
 import { VisualMapRenderer } from '../renderers/VisualMapRenderer';
 import type { IStatTracker } from '../types/gameProviders';
 import { Camera } from '../utils/Camera';
@@ -24,6 +26,7 @@ import { TowerRangeVisualizer } from '../utils/TowerRangeVisualizer';
 import { VisualEffects } from '../utils/VisualEffects';
 import { AnalyticsState } from './AnalyticsState';
 import { EconomyState } from './EconomyState';
+import { trackFrameTelemetry } from './FrameTelemetry';
 import type { InputManager } from './InputManager';
 import { LevelManager } from './LevelManager';
 import { LevelState } from './LevelState';
@@ -35,7 +38,6 @@ import { TowerCombatManager } from './TowerCombatManager';
 import { TowerManager } from './TowerManager';
 import { TowerPlacementManager } from './TowerPlacementManager';
 import { WaveManager } from './WaveManager';
-import { trackFrameTelemetry } from './FrameTelemetry';
 import { ZombieManager } from './ZombieManager';
 
 export interface GameManagerDeps {
@@ -121,6 +123,11 @@ export class GameManager {
     this.worldContainer = new Container();
     this.worldContainer.sortableChildren = true;
     this.viewportContainer.addChild(this.worldContainer);
+
+    // Time-of-day colour wash (hidden unless a day/night cycle is running)
+    this.viewportContainer.addChild(
+      new AmbientTintOverlay(UI_DIMENSIONS.PLAY_AREA_WIDTH, UI_DIMENSIONS.HEIGHT, lightingManager)
+    );
 
     // Screen-space edge darkening above the (panning) world, clipped by the play-area mask
     this.viewportContainer.addChild(

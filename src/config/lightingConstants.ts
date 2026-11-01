@@ -74,6 +74,28 @@ export const LIGHTING = {
     >,
   },
 
+  /** Transient point lights (explosions, arcs, fire) that tint nearby towers. */
+  ENVIRONMENT: {
+    /** Peak alpha of the additive glow a fully-lit tower receives. */
+    GLOW_ALPHA: 0.42,
+    GLOW_RADIUS: 30,
+    /** How far (px) the glow is shifted toward the light source, so it reads as directional. */
+    GLOW_OFFSET: 7,
+    MAX_LIGHTS: 24,
+    EXPLOSION: { radius: 130, color: 0xffa040, intensity: 1, durationMs: 450 },
+    TESLA_ARC: { radius: 80, color: 0x66e0ff, intensity: 0.8, durationMs: 170 },
+    BURNING_GROUND: { radius: 90, color: 0xff7a20, intensity: 0.6, durationMs: 2000 },
+  },
+
+  /**
+   * Optional day/night cycle (off by default; ?daynight=SECONDS or dev.dayNight(seconds)).
+   * Phase 0 = dawn, 0.25 = noon, 0.5 = dusk, 0.75 = midnight.
+   */
+  DAY_NIGHT: {
+    /** Re-apply the light only after the phase has moved this much (avoids per-frame redraws). */
+    APPLY_STEP: 0.002,
+  },
+
   /** Tight halo that follows each projectile. */
   BULLET_GLOW: {
     RADIUS: 6,

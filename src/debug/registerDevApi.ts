@@ -34,6 +34,12 @@ export interface DevApi {
   healthBars: (enabled?: boolean) => boolean;
   /** Move the scene light: angle = degrees CCW from +X (45 = top-right), elevation 15-90. */
   light: (angleDeg?: number, elevationDeg?: number) => { angleDeg: number; elevationDeg: number };
+  /** Drop a timed point light (explosion-like) at x,y; colour defaults to orange. */
+  pointLight: (x: number, y: number, color?: number, radius?: number) => void;
+  /** Jump to a time of day (0 dawn, 0.25 noon, 0.5 dusk, 0.75 midnight); no arg returns the phase. */
+  timeOfDay: (phase?: number) => number;
+  /** Run a day/night cycle of this many game seconds (0 stops it). */
+  dayNight: (cycleSeconds?: number) => boolean;
   dump: () => Record<string, unknown>;
   constants: typeof DebugConstants;
   config: typeof DevConfig;
@@ -57,6 +63,9 @@ export function registerDevApi(ctx: DevToolsContext): DevApi {
   dev.killAll()         Kill all zombies
   dev.nextWave()        Start next wave (when wave complete)
   dev.light(45, 50)     Move the scene light (angle deg CCW from right, elevation 15-90)
+  dev.timeOfDay(0.75)   Jump to a time of day (0 dawn, .25 noon, .5 dusk, .75 midnight)
+  dev.dayNight(120)     Run a day/night cycle of N game seconds (0 = stop)
+  dev.pointLight(x, y)  Drop a timed point light to see environmental lighting
   dev.god()             Toggle / set god mode (no game over)
   dev.oneHitKill()      Toggle / set one-hit kill
   dev.waypoints()       Toggle path waypoint overlay
@@ -141,6 +150,22 @@ export function registerDevApi(ctx: DevToolsContext): DevApi {
         angleDeg: lightingManager.getAngleDeg(),
         elevationDeg: lightingManager.getElevationDeg(),
       };
+    },
+
+    pointLight: (x, y, color = 0xffa040, radius = 130) => {
+      lightingManager.addPointLight({ x, y, radius, color, intensity: 1, durationMs: 1500 });
+    },
+
+    timeOfDay: phase => {
+      if (phase !== undefined) {
+        lightingManager.setTimeOfDay(phase);
+      }
+      return lightingManager.getTimeOfDayPhase();
+    },
+
+    dayNight: (cycleSeconds = 120) => {
+      lightingManager.setDayNightCycle(cycleSeconds);
+      return lightingManager.isDayNightActive();
     },
 
     dump: () => ({

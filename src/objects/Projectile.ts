@@ -1,9 +1,10 @@
 import { Container, Graphics } from 'pixi.js';
 import { LIGHTING } from '../config/lightingConstants';
-import { bulletGlowScale } from '../renderers/lighting/glowMath';
 import { ExplosionEffect } from '../renderers/effects/ExplosionEffect';
 import { ImpactEffect } from '../renderers/effects/ImpactEffect';
 import { SludgePoolEffect } from '../renderers/effects/SludgePoolEffect';
+import { bulletGlowScale } from '../renderers/lighting/glowMath';
+import { lightingManager } from '../renderers/lighting/LightingManager';
 import type { ZombieSpatialQuery } from '../types/zombieSpatialQuery';
 import { EventBus, GameEvents } from '../utils/EventBus';
 import type { Zombie } from './Zombie';
@@ -429,6 +430,17 @@ export class Projectile extends Container {
       400
     );
     this.parent.addChild(explosionEffect);
+
+    // Flash of orange light that briefly lights nearby towers
+    const { radius, color, intensity, durationMs } = LIGHTING.ENVIRONMENT.EXPLOSION;
+    lightingManager.addPointLight({
+      x: this.position.x,
+      y: this.position.y,
+      radius,
+      color,
+      intensity,
+      durationMs,
+    });
 
     // Apply splash damage to all zombies in radius (gameplay logic stays in Projectile)
     const explosionRadius = explosionEffect.getExplosionRadius();

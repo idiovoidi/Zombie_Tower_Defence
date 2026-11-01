@@ -9,6 +9,7 @@
 > | Shooting illumination | Done — `Tower.updateShotGlow`, ~130ms, per-type colour |
 > | Bullet glow | Done — `Projectile.drawGlow`, 6px halo, ±5% pulse, flame skipped (has its own) |
 > | Animated normals / pulsing lights | Done (see below) |
+> | Environmental lighting + day/night | Done (see below) |
 > | Dynamic light direction | Done — `LightingManager.setLightDirection(angle, elevation)`; `dev.light(angle, elevation)` in the console |
 >
 > Tuning lives in `config/lightingConstants.ts`. `?shading=0` disables the GPU shading. The shader is
@@ -20,7 +21,16 @@
 > live as the barrel tracks targets (verified: lit edges identical at 0° and 90° rotation). Tesla
 > towers pulse a cyan light, Flame towers flicker orange, Sludge breathes green (`AMBIENT_GLOW`,
 > random phase per tower, driven by game time so it freezes when paused).
-> Not done: environmental lighting (fire pits/explosions lighting nearby towers), day/night cycle.
+> **Environmental lighting (done):** explosions, Tesla arcs and fire pools drop timed point lights
+> (`LightingManager.addPointLight`, capped at 24). Towers within reach get an additive glow in the
+> light's colour, shifted toward the source so it reads as directional; strength falls off
+> quadratically and fades with the light's life. `dev.pointLight(x, y)` drops one for testing.
+> **Day/night cycle (done, opt-in):** `getTimeOfDay(phase)` gives the light angle/elevation and an
+> ambient tint (dawn/dusk amber, midnight blue); the sun/moon crosses right to left so shadows and
+> shading swing across the map. Enable with `?daynight=SECONDS` or `dev.dayNight(seconds)`; jump
+> with `dev.timeOfDay(phase)`. Off by default so the tuned look is unchanged; the cycle runs on game
+> time, so it pauses with the game.
+> Not done: a settings UI for any of this, and lighting for zombies (towers only).
 
 ## Overview
 

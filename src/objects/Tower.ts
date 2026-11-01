@@ -37,6 +37,8 @@ export class Tower extends GameObject implements ITower, TowerEffects {
   /** Idle light for energy/fire towers (null for the rest); phase is randomised per tower. */
   private ambientGlow: Graphics | null = null;
   private ambientTimeSec = Math.random() * 10;
+  /** Additive spill of nearby explosions/arcs/fire; tinted, shifted and faded per frame. */
+  private environmentGlow: Graphics;
   /** ms since the last shot, for the brief firing flash (Infinity = no flash). */
   private shotGlowAgeMs = Number.POSITIVE_INFINITY;
   private unsubscribeLight: (() => void) | null = null;
@@ -117,6 +119,9 @@ export class Tower extends GameObject implements ITower, TowerEffects {
       this.addChild(this.ambientGlow);
     }
 
+    this.environmentGlow = this.createEnvironmentGlow();
+    this.addChild(this.environmentGlow);
+
     // Faint coloured flash around the base while firing (hidden until the first shot)
     this.shotGlow = this.createShotGlow();
     this.addChild(this.shotGlow);
@@ -148,6 +153,38 @@ export class Tower extends GameObject implements ITower, TowerEffects {
     if (this.type === GameConfig.TOWER_TYPES.MACHINE_GUN) {
       this.barrelHeatGlow = new BarrelHeatGlow(this.barrel);
     }
+  }
+
+  /** White discs (so tint colours them) with additive blending; hidden until a light reaches the tower. */
+  private createEnvironmentGlow(): Graphics {
+    const { GLOW_RADIUS } = LIGHTING.ENVIRONMENT;
+    const glow = new Graphics();
+    glow.circle(0, 0, GLOW_RADIUS).fill({ color: 0xffffff, alpha: 0.45 });
+    glow.circle(0, 0, GLOW_RADIUS * 0.62).fill({ color: 0xffffff, alpha: 0.4 });
+    glow.circle(0, 0, GLOW_RADIUS * 0.3).fill({ color: 0xffffff, alpha: 0.35 });
+    glow.blendMode = 'add';
+    glow.visible = false;
+    return glow;
+  }
+
+  private updateEnvironmentGlow(): void {
+    if (!lightingManager.hasPointLights()) {
+      if (this.environmentGlow.visible) {
+        this.environmentGlow.visible = false;
+      }
+      return;
+    }
+    const sample = lightingManager.sampleEnvironment(this.position.x, this.position.y);
+    if (sample.strength < 0.01) {
+      this.environmentGlow.visible = false;
+      return;
+    }
+    const { GLOW_ALPHA, GLOW_OFFSET } = LIGHTING.ENVIRONMENT;
+    this.environmentGlow.visible = true;
+    this.environmentGlow.tint = sample.color;
+    this.environmentGlow.alpha = sample.strength * GLOW_ALPHA;
+    // Shift toward the source so the light reads as coming from that side
+    this.environmentGlow.position.set(sample.dirX * GLOW_OFFSET, sample.dirY * GLOW_OFFSET + 6);
   }
 
   /** Soft stacked discs in the tower's light colour; alpha is animated in updateAmbientGlow. */
@@ -222,6 +259,7 @@ export class Tower extends GameObject implements ITower, TowerEffects {
 
     this.updateShotGlow(deltaTime);
     this.updateAmbientGlow(deltaTime);
+    this.updateEnvironmentGlow();
 
     // Update barrel heat glow for machine gun
     if (this.barrelHeatGlow) {

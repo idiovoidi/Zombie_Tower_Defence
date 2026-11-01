@@ -13,9 +13,9 @@ import {
   TowerRangeDebugOverlay,
 } from './debug';
 import { GameManager } from './managers/GameManager';
-import { lightingManager } from './renderers/lighting/LightingManager';
 import { InputManager } from './managers/InputManager';
 import { TimeControlManager } from './managers/TimeControlManager';
+import { lightingManager } from './renderers/lighting/LightingManager';
 import { DebugUtils } from './utils/DebugUtils';
 
 function isDevToolsEnabled(): boolean {
@@ -37,11 +37,26 @@ function isSurfaceShadingRequested(): boolean {
   }
 }
 
+function requestedDayNightSeconds(): number {
+  try {
+    const value = Number(new URLSearchParams(window.location.search).get('daynight'));
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
 (async () => {
   applyUrlDevOverrides();
 
   // GPU surface shading on tower bases (needs WebGL); ?shading=0 turns it off
   lightingManager.setSurfaceShadingEnabled(isSurfaceShadingRequested());
+
+  // Optional day/night cycle: ?daynight=SECONDS (game seconds per full day)
+  const dayNightSeconds = requestedDayNightSeconds();
+  if (dayNightSeconds > 0) {
+    lightingManager.setDayNightCycle(dayNightSeconds);
+  }
 
   DebugUtils.setEnabled(DevConfig.DEBUG.ENABLED);
   DebugUtils.setLogLevel(DevConfig.DEBUG.LOG_LEVEL as 'debug' | 'info' | 'warn' | 'error');

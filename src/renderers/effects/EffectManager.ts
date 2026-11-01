@@ -1,13 +1,15 @@
 import type { Zombie } from '@objects/Zombie';
-import type { ZombieSpatialQuery } from '../../types/zombieSpatialQuery';
 import { ObjectPool } from '@utils/ObjectPool';
 import { type Container, type Container as PixiContainer, Rectangle } from 'pixi.js';
+import { LIGHTING } from '../../config/lightingConstants';
+import type { ZombieSpatialQuery } from '../../types/zombieSpatialQuery';
+import { lightingManager } from '../lighting/LightingManager';
 import { BulletTrail } from './BulletTrail';
 import { BurningGroundEffect } from './BurningGroundEffect';
+import { buildEffectStats, type EffectLimits, type EffectStats } from './EffectStats';
 import { ImpactFlash } from './ImpactFlash';
 import { MuzzleFlashLight } from './MuzzleFlashLight';
 import { ScopeGlint } from './ScopeGlint';
-import { buildEffectStats, type EffectLimits, type EffectStats } from './EffectStats';
 import { ShellCasing } from './ShellCasing';
 import { TransientEffects } from './TransientEffects';
 
@@ -321,6 +323,9 @@ export class EffectManager {
 
     this.burningGroundEffects.push(effect);
     this.container.addChild(effect);
+
+    const { radius, color, intensity, durationMs } = LIGHTING.ENVIRONMENT.BURNING_GROUND;
+    lightingManager.addPointLight({ x, y, radius, color, intensity, durationMs });
   }
 
   /** Spawn a lightning arc (Tesla tower) */
@@ -397,6 +402,9 @@ export class EffectManager {
    * Update all effects
    */
   public update(deltaTime: number): void {
+    // One lighting clock for the whole scene: fades point lights and advances day/night
+    lightingManager.update(deltaTime);
+
     this.tickEffectCollection(
       this.shellCasings,
       this.shellCasingPool,

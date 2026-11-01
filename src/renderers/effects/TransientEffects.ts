@@ -2,6 +2,8 @@ import type { Zombie } from '@objects/Zombie';
 import { EffectCleanupManager } from '@utils/EffectCleanupManager';
 import { ResourceCleanupManager } from '@utils/ResourceCleanupManager';
 import { type Container, Graphics } from 'pixi.js';
+import { LIGHTING } from '../../config/lightingConstants';
+import { lightingManager } from '../lighting/LightingManager';
 
 /**
  * Fire-and-forget visual effects that own no pooled state: they are drawn once
@@ -21,6 +23,10 @@ export class TransientEffects {
     endY: number,
     isPrimary = true
   ): void {
+    // Cool flash at the strike point lights nearby towers
+    const { radius, color, intensity, durationMs } = LIGHTING.ENVIRONMENT.TESLA_ARC;
+    lightingManager.addPointLight({ x: endX, y: endY, radius, color, intensity, durationMs });
+
     const lightningGraphics = new Graphics();
     this.drawLightningBolt(lightningGraphics, startX, startY, endX, endY, isPrimary);
     this.container.addChild(lightningGraphics);
