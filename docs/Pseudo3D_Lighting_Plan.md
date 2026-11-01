@@ -1,5 +1,21 @@
 # Pseudo-3D Lighting System Design Plan
 
+> **Implementation status (current):** shipped, with one deliberate deviation.
+>
+> | Part | Status |
+> |---|---|
+> | Tower shadows | Done — `renderers/lighting/TowerShadow.ts`, driven by the shared light |
+> | Surface shading | Done, **simplified**: instead of per-type procedural normal maps, `TowerLightingFilter` estimates bevel normals from each sprite's own silhouette and brightness edges, so every tower type and upgrade level is shaded automatically with no cached textures |
+> | Shooting illumination | Done — `Tower.updateShotGlow`, ~130ms, per-type colour |
+> | Bullet glow | Done — `Projectile.drawGlow`, 6px halo, ±5% pulse, flame skipped (has its own) |
+> | Dynamic light direction | Done — `LightingManager.setLightDirection(angle, elevation)`; `dev.light(angle, elevation)` in the console |
+>
+> Tuning lives in `config/lightingConstants.ts`. `?shading=0` disables the GPU shading. The shader is
+> pre-validated in a throwaway WebGL2 context, so an unsupported driver falls back to no shading
+> rather than invisible towers. **Note:** the original plan said a bloom filter already existed in the
+> codebase; it does not, and the glow here is geometry-based rather than a post-process bloom.
+> Not done: animated normal maps, environmental lighting (fire pits/explosions), day/night cycle.
+
 ## Overview
 
 Implement a **pseudo-3D lighting system** that adds depth and visual richness to the 2D tower defense game through dynamic shadows, normal map-based lighting, and subtle bloom effects.

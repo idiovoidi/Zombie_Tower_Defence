@@ -1,4 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
+import { LIGHTING } from '../config/lightingConstants';
+import { bulletGlowScale } from '../renderers/lighting/glowMath';
 import { ExplosionEffect } from '../renderers/effects/ExplosionEffect';
 import { ImpactEffect } from '../renderers/effects/ImpactEffect';
 import { SludgePoolEffect } from '../renderers/effects/SludgePoolEffect';
@@ -8,6 +10,9 @@ import type { Zombie } from './Zombie';
 
 export class Projectile extends Container {
   private visual: Graphics;
+  /** Tight halo hugging the projectile (pooled with it; recoloured per type in createVisual). */
+  private glow: Graphics;
+  private glowTimeSec = 0;
   private speed: number;
   private damage: number;
   private target: Zombie | null;
@@ -48,6 +53,9 @@ export class Projectile extends Container {
     this.projectileType = projectileType;
     this.target = target;
 
+    // Glow sits under the projectile body so the bullet itself stays crisp
+    this.glow = new Graphics();
+    this.addChild(this.glow);
     this.visual = new Graphics();
     this.addChild(this.visual);
 
@@ -85,6 +93,7 @@ export class Projectile extends Container {
 
   private createVisual(): void {
     this.visual.clear();
+    this.drawGlow();
 
     switch (this.projectileType) {
       case 'bullet':
@@ -133,6 +142,22 @@ export class Projectile extends Container {
     }
   }
 
+  /** Subtle coloured halo (about 6px radius) so projectiles read as hot/active. */
+  private drawGlow(): void {
+    const g = LIGHTING.BULLET_GLOW;
+    this.glow.clear();
+    this.glow.scale.set(1);
+    this.glowTimeSec = 0;
+    if (g.SKIP_TYPES.includes(this.projectileType)) {
+      this.glow.visible = false;
+      return;
+    }
+    const color = g.COLORS[this.projectileType] ?? g.DEFAULT_COLOR;
+    this.glow.circle(0, 0, g.RADIUS).fill({ color, alpha: g.ALPHA * 0.55 });
+    this.glow.circle(0, 0, g.RADIUS * 0.6).fill({ color, alpha: g.ALPHA * 0.7 });
+    this.glow.visible = true;
+  }
+
   public setZombies(zombies: Zombie[]): void {
     this.zombies = zombies;
   }
@@ -176,11 +201,7 @@ export class Projectile extends Container {
    */
   private findZombieInRadius(radius: number): Zombie | null {
     if (this.spatialQuery) {
-      return this.spatialQuery.queryFirstZombieInRadius(
-        this.position.x,
-        this.position.y,
-        radius
-      );
+      return this.spatialQuery.queryFirstZombieInRadius(this.position.x, this.position.y, radius);
     }
 
     const zombiesInRadius = this.getZombiesInRadius(radius);
@@ -190,6 +211,17 @@ export class Projectile extends Container {
   public update(deltaTime: number): void {
     if (!this.isActive) {
       return;
+    }
+
+    if (this.glow.visible) {
+      this.glowTimeSec += deltaTime / 1000;
+      this.glow.scale.set(
+        bulletGlowScale(
+          this.glowTimeSec,
+          LIGHTING.BULLET_GLOW.PULSE_AMOUNT,
+          LIGHTING.BULLET_GLOW.PULSE_SPEED
+        )
+      );
     }
 
     // Update target position if tracking a zombie (only if not dying)
@@ -277,10 +309,10 @@ export class Projectile extends Container {
 
   private onHitTarget(): void {
     this.isActive = false;
+    this.glow.visible = false;
 
     // Grenade/sludge deal damage via area effects at impact, not a direct hit
-    const isAreaProjectile =
-      this.projectileType === 'grenade' || this.projectileType === 'sludge';
+    const isAreaProjectile = this.projectileType === 'grenade' || this.projectileType === 'sludge';
     if (this.target?.parent && !this.target.getIsDying() && !isAreaProjectile) {
       this.applyDamageToZombie(this.target, this.damage);
     }

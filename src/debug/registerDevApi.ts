@@ -2,6 +2,7 @@ import { DebugConstants } from '../config/debugConstants';
 import { DevConfig } from '../config/devConfig';
 import type { GameManager } from '../managers/GameManager';
 import type { TimeControlManager } from '../managers/TimeControlManager';
+import { lightingManager } from '../renderers/lighting/LightingManager';
 import { DebugUtils } from '../utils/DebugUtils';
 import type { PathDebugOverlay } from './PathDebugOverlay';
 import type { TowerRangeDebugOverlay } from './TowerRangeDebugOverlay';
@@ -31,6 +32,8 @@ export interface DevApi {
   waypoints: (enabled?: boolean) => boolean;
   ranges: (enabled?: boolean) => boolean;
   healthBars: (enabled?: boolean) => boolean;
+  /** Move the scene light: angle = degrees CCW from +X (45 = top-right), elevation 15-90. */
+  light: (angleDeg?: number, elevationDeg?: number) => { angleDeg: number; elevationDeg: number };
   dump: () => Record<string, unknown>;
   constants: typeof DebugConstants;
   config: typeof DevConfig;
@@ -46,12 +49,14 @@ export function registerDevApi(ctx: DevToolsContext): DevApi {
 
   const api: DevApi = {
     help: () => {
-      DebugUtils.info(`
+      DebugUtils.info(
+        `
 🛠️ window.dev — QOL cheats (also see URL params in debugConstants.ts header)
   dev.money(5000)       Add money (default 5000)
   dev.lives(10)         Add lives
   dev.killAll()         Kill all zombies
   dev.nextWave()        Start next wave (when wave complete)
+  dev.light(45, 50)     Move the scene light (angle deg CCW from right, elevation 15-90)
   dev.god()             Toggle / set god mode (no game over)
   dev.oneHitKill()      Toggle / set one-hit kill
   dev.waypoints()       Toggle path waypoint overlay
@@ -61,7 +66,8 @@ export function registerDevApi(ctx: DevToolsContext): DevApi {
   dev.constants         Live DebugConstants object
   Hotkeys (debug on): M money, L lives, K kill, N next wave, U max upgrade
                       G god, R ranges, W waypoints, H help, Ctrl+D scale debug
-      `.trim());
+      `.trim()
+      );
     },
 
     money: (amount = 5000) => {
@@ -99,8 +105,7 @@ export function registerDevApi(ctx: DevToolsContext): DevApi {
     },
 
     oneHitKill: (enabled?: boolean) => {
-      DebugConstants.ONE_HIT_KILL =
-        enabled === undefined ? !DebugConstants.ONE_HIT_KILL : enabled;
+      DebugConstants.ONE_HIT_KILL = enabled === undefined ? !DebugConstants.ONE_HIT_KILL : enabled;
       DebugUtils.debug(`⚔️ One-hit kill ${DebugConstants.ONE_HIT_KILL ? 'ON' : 'OFF'}`);
       return DebugConstants.ONE_HIT_KILL;
     },
@@ -124,10 +129,18 @@ export function registerDevApi(ctx: DevToolsContext): DevApi {
     healthBars: (enabled?: boolean) => {
       DebugConstants.SHOW_ZOMBIE_HEALTH_BARS =
         enabled === undefined ? !DebugConstants.SHOW_ZOMBIE_HEALTH_BARS : enabled;
-      DebugUtils.debug(
-        `🩺 Health bars ${DebugConstants.SHOW_ZOMBIE_HEALTH_BARS ? 'ON' : 'OFF'}`
-      );
+      DebugUtils.debug(`🩺 Health bars ${DebugConstants.SHOW_ZOMBIE_HEALTH_BARS ? 'ON' : 'OFF'}`);
       return DebugConstants.SHOW_ZOMBIE_HEALTH_BARS;
+    },
+
+    light: (angleDeg, elevationDeg) => {
+      if (angleDeg !== undefined) {
+        lightingManager.setLightDirection(angleDeg, elevationDeg);
+      }
+      return {
+        angleDeg: lightingManager.getAngleDeg(),
+        elevationDeg: lightingManager.getElevationDeg(),
+      };
     },
 
     dump: () => ({

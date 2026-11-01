@@ -13,6 +13,7 @@ import {
   TowerRangeDebugOverlay,
 } from './debug';
 import { GameManager } from './managers/GameManager';
+import { lightingManager } from './renderers/lighting/LightingManager';
 import { InputManager } from './managers/InputManager';
 import { TimeControlManager } from './managers/TimeControlManager';
 import { DebugUtils } from './utils/DebugUtils';
@@ -28,8 +29,19 @@ function isDevToolsEnabled(): boolean {
   }
 }
 
+function isSurfaceShadingRequested(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get('shading') !== '0';
+  } catch {
+    return true;
+  }
+}
+
 (async () => {
   applyUrlDevOverrides();
+
+  // GPU surface shading on tower bases (needs WebGL); ?shading=0 turns it off
+  lightingManager.setSurfaceShadingEnabled(isSurfaceShadingRequested());
 
   DebugUtils.setEnabled(DevConfig.DEBUG.ENABLED);
   DebugUtils.setLogLevel(DevConfig.DEBUG.LOG_LEVEL as 'debug' | 'info' | 'warn' | 'error');

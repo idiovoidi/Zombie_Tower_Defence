@@ -6,10 +6,15 @@ import { TransformComponent } from '../components/TransformComponent';
 import { TOWER_MAX_LEVEL } from '../config/balanceConstants';
 import { DebugConstants } from '../config/debugConstants';
 import { GameConfig } from '../config/gameConfig';
+import { LIGHTING } from '../config/lightingConstants';
 import { getTowerStats, type IdleAnimationType } from '../config/towerConstants';
 import { getTowerRuntime } from '../core/towerRuntime';
 import type { TowerManager } from '../managers/TowerManager';
 import { BarrelHeatGlow } from '../renderers/effects/BarrelHeatGlow';
+import { shotGlowAlpha } from '../renderers/lighting/glowMath';
+import { lightingManager } from '../renderers/lighting/LightingManager';
+import { getTowerLightingFilter } from '../renderers/lighting/TowerLightingFilter';
+import { drawTowerShadow } from '../renderers/lighting/TowerShadow';
 import type { TowerEffects } from '../types/tower-internal';
 import { EffectCleanupManager } from '../utils/EffectCleanupManager';
 import { type EventBus, GameEvents } from '../utils/EventBus';
@@ -27,6 +32,11 @@ export class Tower extends GameObject implements ITower, TowerEffects {
   private maxUpgradeLevel = TOWER_MAX_LEVEL;
   private upgradeCost = 100;
   private visual: Graphics;
+  private shadow: Graphics;
+  private shotGlow: Graphics;
+  /** ms since the last shot, for the brief firing flash (Infinity = no flash). */
+  private shotGlowAgeMs = Number.POSITIVE_INFINITY;
+  private unsubscribeLight: (() => void) | null = null;
   private barrel: Container; // Separate barrel for rotation
   private renderer: ITowerRenderer; // Renderer for visual representation
   private rangeVisualizer: TowerRangeVisualizer;
@@ -89,13 +99,28 @@ export class Tower extends GameObject implements ITower, TowerEffects {
     const transform = new TransformComponent(x, y);
     this.addComponent(transform);
 
-    // Soft ground shadow (light from the top-right, so it falls down-left). Drawn first so it
-    // sits under the tower body and gives the sprite weight against the terrain.
-    this.addChild(Tower.createGroundShadow());
+    // Soft ground shadow that follows the scene light. Drawn first so it sits under the tower
+    // body and gives the sprite weight against the terrain.
+    this.shadow = new Graphics();
+    drawTowerShadow(this.shadow, lightingManager);
+    this.addChild(this.shadow);
+    this.unsubscribeLight = lightingManager.subscribe(() =>
+      drawTowerShadow(this.shadow, lightingManager)
+    );
+
+    // Faint coloured flash around the base while firing (hidden until the first shot)
+    this.shotGlow = this.createShotGlow();
+    this.addChild(this.shotGlow);
 
     // Create visual representation
     this.visual = new Graphics();
     this.addChild(this.visual);
+
+    // Pseudo-3D bevel shading (null when lighting is off or unsupported)
+    const lightingFilter = getTowerLightingFilter();
+    if (lightingFilter) {
+      this.visual.filters = [lightingFilter];
+    }
 
     // Create barrel as separate container for rotation (holds graphics + effects)
     this.barrel = new Container();
@@ -116,12 +141,31 @@ export class Tower extends GameObject implements ITower, TowerEffects {
     }
   }
 
-  /** Two stacked ellipses approximate a penumbra: darker core, softer outer edge. */
-  private static createGroundShadow(): Graphics {
-    const shadow = new Graphics();
-    shadow.ellipse(-6, 21, 27, 9).fill({ color: 0x000000, alpha: 0.2 });
-    shadow.ellipse(-6, 21, 19, 6).fill({ color: 0x000000, alpha: 0.22 });
-    return shadow;
+  /** Three soft stacked discs tinted for the tower type; alpha is driven in updateShotGlow. */
+  private createShotGlow(): Graphics {
+    const { COLORS, DEFAULT_COLOR, RADIUS, CENTER_Y } = LIGHTING.SHOT_GLOW;
+    const color = COLORS[this.type] ?? DEFAULT_COLOR;
+    const glow = new Graphics();
+    glow.circle(0, CENTER_Y, RADIUS).fill({ color, alpha: 0.4 });
+    glow.circle(0, CENTER_Y, RADIUS * 0.66).fill({ color, alpha: 0.35 });
+    glow.circle(0, CENTER_Y, RADIUS * 0.33).fill({ color, alpha: 0.3 });
+    glow.alpha = 0;
+    glow.visible = false;
+    return glow;
+  }
+
+  private updateShotGlow(deltaTime: number): void {
+    if (this.shotGlowAgeMs === Number.POSITIVE_INFINITY) {
+      return;
+    }
+    this.shotGlowAgeMs += deltaTime;
+    const { PEAK_ALPHA, DURATION_MS } = LIGHTING.SHOT_GLOW;
+    const alpha = shotGlowAlpha(this.shotGlowAgeMs, PEAK_ALPHA, DURATION_MS);
+    this.shotGlow.alpha = alpha;
+    this.shotGlow.visible = alpha > 0;
+    if (alpha === 0) {
+      this.shotGlowAgeMs = Number.POSITIVE_INFINITY;
+    }
   }
 
   private initializeStats(): void {
@@ -142,6 +186,8 @@ export class Tower extends GameObject implements ITower, TowerEffects {
 
     // Update idle animation
     this.updateIdleAnimation(deltaTime);
+
+    this.updateShotGlow(deltaTime);
 
     // Update barrel heat glow for machine gun
     if (this.barrelHeatGlow) {
@@ -303,6 +349,7 @@ export class Tower extends GameObject implements ITower, TowerEffects {
   // Show shooting visual effects
   public showShootingEffect(): void {
     this.renderer.renderShootingEffect(this.barrel, this.type, this.upgradeLevel);
+    this.shotGlowAgeMs = 0;
   }
 
   // Show tower range visualization
@@ -647,6 +694,9 @@ export class Tower extends GameObject implements ITower, TowerEffects {
    * Clean up effects when tower is destroyed
    */
   public override destroy(): void {
+    this.unsubscribeLight?.();
+    this.unsubscribeLight = null;
+
     // CRITICAL: Clear pulse interval to prevent memory leak
     if (this.pulseInterval) {
       clearInterval(this.pulseInterval);
