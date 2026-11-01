@@ -55,6 +55,25 @@ export const LIGHTING = {
     } as Readonly<Record<string, number>>,
   },
 
+  /**
+   * Always-on soft light that energy/fire towers cast on the ground while idle or firing.
+   * `flicker` 0 = smooth sine pulse, 1 = irregular fire-like flicker.
+   */
+  AMBIENT_GLOW: {
+    RADIUS: 34,
+    CENTER_Y: 6,
+    TYPES: {
+      Tesla: { color: 0x4fd8ff, minAlpha: 0.03, maxAlpha: 0.13, speedHz: 1.1, flicker: 0 },
+      Flame: { color: 0xff8a1a, minAlpha: 0.03, maxAlpha: 0.17, speedHz: 5, flicker: 1 },
+      Sludge: { color: 0x55ff55, minAlpha: 0.02, maxAlpha: 0.08, speedHz: 0.6, flicker: 0 },
+    } as Readonly<
+      Record<
+        string,
+        { color: number; minAlpha: number; maxAlpha: number; speedHz: number; flicker: number }
+      >
+    >,
+  },
+
   /** Tight halo that follows each projectile. */
   BULLET_GLOW: {
     RADIUS: 6,

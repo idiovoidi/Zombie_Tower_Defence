@@ -108,3 +108,35 @@ describe('tower lighting filter safety', () => {
     expect(getTowerLightingFilter(lm)).toBeNull();
   });
 });
+
+describe('ambient glow curve', () => {
+  const sine = { minAlpha: 0.03, maxAlpha: 0.13, speedHz: 1, flicker: 0 };
+  const fire = { minAlpha: 0.03, maxAlpha: 0.14, speedHz: 5, flicker: 1 };
+
+  test('always stays within [min, max]', async () => {
+    const { ambientGlowAlpha } = await import('../src/renderers/lighting/glowMath');
+    for (const cfg of [sine, fire, { ...fire, flicker: 0.5 }]) {
+      for (let t = 0; t < 20; t += 0.013) {
+        const a = ambientGlowAlpha(t, cfg);
+        expect(a).toBeGreaterThanOrEqual(cfg.minAlpha - 1e-9);
+        expect(a).toBeLessThanOrEqual(cfg.maxAlpha + 1e-9);
+      }
+    }
+  });
+
+  test('the smooth pulse repeats every period and reaches both extremes', async () => {
+    const { ambientGlowAlpha } = await import('../src/renderers/lighting/glowMath');
+    expect(ambientGlowAlpha(0.3, sine)).toBeCloseTo(ambientGlowAlpha(1.3, sine));
+    expect(ambientGlowAlpha(0.25, sine)).toBeCloseTo(sine.maxAlpha); // sin peak at 1/4 period
+    expect(ambientGlowAlpha(0.75, sine)).toBeCloseTo(sine.minAlpha);
+  });
+
+  test('flicker is irregular (not periodic like the sine) but deterministic', async () => {
+    const { ambientGlowAlpha } = await import('../src/renderers/lighting/glowMath');
+    const period = 1 / fire.speedHz;
+    expect(ambientGlowAlpha(0.37, fire)).toBe(ambientGlowAlpha(0.37, fire));
+    expect(
+      Math.abs(ambientGlowAlpha(0.37, fire) - ambientGlowAlpha(0.37 + period, fire))
+    ).toBeGreaterThan(1e-3);
+  });
+});

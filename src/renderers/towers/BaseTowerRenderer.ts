@@ -1,5 +1,6 @@
 import { type Container, Graphics } from 'pixi.js';
 import { EffectCleanupManager } from '@/utils/EffectCleanupManager';
+import { getTowerLightingFilter } from '../lighting/TowerLightingFilter';
 import type { ITowerRenderer } from './ITowerRenderer';
 
 export type BarrelRenderCallback = (graphics: Graphics, upgradeLevel: number) => void;
@@ -86,6 +87,14 @@ export abstract class BaseTowerRenderer implements ITowerRenderer {
     }
     const graphics = existingGraphics ?? new Graphics();
     graphics.label = label;
+    // Shade the gunner too. The filter works in screen space, so as the barrel rotates to track
+    // targets its lit/shadowed edges update live (the light does not turn with the sprite).
+    if (!existingGraphics) {
+      const lightingFilter = getTowerLightingFilter();
+      if (lightingFilter) {
+        graphics.filters = [lightingFilter];
+      }
+    }
     return graphics;
   }
 

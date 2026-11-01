@@ -11,7 +11,7 @@ import { getTowerStats, type IdleAnimationType } from '../config/towerConstants'
 import { getTowerRuntime } from '../core/towerRuntime';
 import type { TowerManager } from '../managers/TowerManager';
 import { BarrelHeatGlow } from '../renderers/effects/BarrelHeatGlow';
-import { shotGlowAlpha } from '../renderers/lighting/glowMath';
+import { ambientGlowAlpha, shotGlowAlpha } from '../renderers/lighting/glowMath';
 import { lightingManager } from '../renderers/lighting/LightingManager';
 import { getTowerLightingFilter } from '../renderers/lighting/TowerLightingFilter';
 import { drawTowerShadow } from '../renderers/lighting/TowerShadow';
@@ -34,6 +34,9 @@ export class Tower extends GameObject implements ITower, TowerEffects {
   private visual: Graphics;
   private shadow: Graphics;
   private shotGlow: Graphics;
+  /** Idle light for energy/fire towers (null for the rest); phase is randomised per tower. */
+  private ambientGlow: Graphics | null = null;
+  private ambientTimeSec = Math.random() * 10;
   /** ms since the last shot, for the brief firing flash (Infinity = no flash). */
   private shotGlowAgeMs = Number.POSITIVE_INFINITY;
   private unsubscribeLight: (() => void) | null = null;
@@ -108,6 +111,12 @@ export class Tower extends GameObject implements ITower, TowerEffects {
       drawTowerShadow(this.shadow, lightingManager)
     );
 
+    // Soft idle light (Tesla pulse, Flame flicker, Sludge glow) under the body
+    this.ambientGlow = this.createAmbientGlow();
+    if (this.ambientGlow) {
+      this.addChild(this.ambientGlow);
+    }
+
     // Faint coloured flash around the base while firing (hidden until the first shot)
     this.shotGlow = this.createShotGlow();
     this.addChild(this.shotGlow);
@@ -139,6 +148,30 @@ export class Tower extends GameObject implements ITower, TowerEffects {
     if (this.type === GameConfig.TOWER_TYPES.MACHINE_GUN) {
       this.barrelHeatGlow = new BarrelHeatGlow(this.barrel);
     }
+  }
+
+  /** Soft stacked discs in the tower's light colour; alpha is animated in updateAmbientGlow. */
+  private createAmbientGlow(): Graphics | null {
+    const config = LIGHTING.AMBIENT_GLOW.TYPES[this.type];
+    if (!config) {
+      return null;
+    }
+    const { RADIUS, CENTER_Y } = LIGHTING.AMBIENT_GLOW;
+    const glow = new Graphics();
+    glow.circle(0, CENTER_Y, RADIUS).fill({ color: config.color, alpha: 0.4 });
+    glow.circle(0, CENTER_Y, RADIUS * 0.66).fill({ color: config.color, alpha: 0.35 });
+    glow.circle(0, CENTER_Y, RADIUS * 0.33).fill({ color: config.color, alpha: 0.3 });
+    glow.alpha = config.minAlpha;
+    return glow;
+  }
+
+  private updateAmbientGlow(deltaTime: number): void {
+    const config = LIGHTING.AMBIENT_GLOW.TYPES[this.type];
+    if (!this.ambientGlow || !config) {
+      return;
+    }
+    this.ambientTimeSec += deltaTime / 1000;
+    this.ambientGlow.alpha = ambientGlowAlpha(this.ambientTimeSec, config);
   }
 
   /** Three soft stacked discs tinted for the tower type; alpha is driven in updateShotGlow. */
@@ -188,6 +221,7 @@ export class Tower extends GameObject implements ITower, TowerEffects {
     this.updateIdleAnimation(deltaTime);
 
     this.updateShotGlow(deltaTime);
+    this.updateAmbientGlow(deltaTime);
 
     // Update barrel heat glow for machine gun
     if (this.barrelHeatGlow) {

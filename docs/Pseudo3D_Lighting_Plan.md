@@ -8,13 +8,19 @@
 > | Surface shading | Done, **simplified**: instead of per-type procedural normal maps, `TowerLightingFilter` estimates bevel normals from each sprite's own silhouette and brightness edges, so every tower type and upgrade level is shaded automatically with no cached textures |
 > | Shooting illumination | Done — `Tower.updateShotGlow`, ~130ms, per-type colour |
 > | Bullet glow | Done — `Projectile.drawGlow`, 6px halo, ±5% pulse, flame skipped (has its own) |
+> | Animated normals / pulsing lights | Done (see below) |
 > | Dynamic light direction | Done — `LightingManager.setLightDirection(angle, elevation)`; `dev.light(angle, elevation)` in the console |
 >
 > Tuning lives in `config/lightingConstants.ts`. `?shading=0` disables the GPU shading. The shader is
 > pre-validated in a throwaway WebGL2 context, so an unsupported driver falls back to no shading
 > rather than invisible towers. **Note:** the original plan said a bloom filter already existed in the
 > codebase; it does not, and the glow here is geometry-based rather than a post-process bloom.
-> Not done: animated normal maps, environmental lighting (fire pits/explosions), day/night cycle.
+> **Animated lighting (done):** the rotating gunner/barrel goes through the same filter. Because Pixi
+> filters run in screen space, the light does not turn with the sprite, so its lit/shadowed edges update
+> live as the barrel tracks targets (verified: lit edges identical at 0° and 90° rotation). Tesla
+> towers pulse a cyan light, Flame towers flicker orange, Sludge breathes green (`AMBIENT_GLOW`,
+> random phase per tower, driven by game time so it freezes when paused).
+> Not done: environmental lighting (fire pits/explosions lighting nearby towers), day/night cycle.
 
 ## Overview
 
