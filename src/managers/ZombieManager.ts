@@ -1,4 +1,4 @@
-import { Container } from 'pixi.js';
+import { Container, type Graphics } from 'pixi.js';
 import type { HealthComponent } from '../components/HealthComponent';
 import { GameConfig } from '../config/gameConfig';
 import type { Zombie } from '../objects/Zombie';
@@ -51,6 +51,7 @@ export class ZombieManager {
         z.visible = false;
         if (z.parent) z.parent.removeChild(z);
         z.removeAllListeners('zombieDeath');
+        z.removeAllListeners('zombieCorpse');
         if (z instanceof NecroTankZombie) {
           z.setAbilityContext(null);
         }
@@ -195,10 +196,21 @@ export class ZombieManager {
 
     zombie.on(
       'zombieDeath',
-      (data: { x: number; y: number; type: string; size: number; killerType: string }) => {
+      (data: {
+        x: number;
+        y: number;
+        type: string;
+        size: number;
+        killerType: string;
+        impactAngle?: number;
+        ragdollCorpse?: boolean;
+      }) => {
         this.onZombieDeath(data);
       }
     );
+    zombie.on('zombieCorpse', (data: { x: number; y: number; body: Graphics }) => {
+      this.corpseManager.createCorpseFromBody(data.x, data.y, data.body);
+    });
 
     if (zombie instanceof NecroTankZombie) {
       zombie.setAbilityContext({
@@ -225,6 +237,7 @@ export class ZombieManager {
     size: number;
     killerType: string;
     impactAngle?: number;
+    ragdollCorpse?: boolean;
   }): void {
     const intensity = data.size / 10; // Scale intensity based on zombie size
     const angle = data.impactAngle ?? Math.random() * Math.PI * 2;
@@ -271,8 +284,17 @@ export class ZombieManager {
         break;
     }
 
-    // Create corpse with killer type for potential corpse styling
-    this.corpseManager.createCorpse(data.x, data.y, data.type, data.size);
+    // Ragdoll deaths leave their own settled body later; others get a posed corpse right away
+    if (!data.ragdollCorpse) {
+      this.corpseManager.createCorpse(
+        data.x,
+        data.y,
+        data.type,
+        data.size,
+        data.killerType,
+        data.impactAngle
+      );
+    }
   }
 
   // Remove zombie from game

@@ -213,9 +213,7 @@ export class Zombie extends GameObject {
   /** Recompute speed from base, variation, sludge slow, limb penalties, and bonuses. */
   protected recalculateSpeed(): void {
     const slowFactor = this.isSlowed ? 1 - this.currentSlowPercent : 1;
-    const limbMult = this.limbState
-      ? this.limbState.getSpeedMultiplier(this.getHealthRatio())
-      : 1;
+    const limbMult = this.limbState ? this.limbState.getSpeedMultiplier(this.getHealthRatio()) : 1;
     this.speed = this.baseSpeed * this.speedVariation * slowFactor * limbMult + this.speedBonus;
   }
 
@@ -520,11 +518,17 @@ export class Zombie extends GameObject {
       size: this.getVisualSize(),
       killerType: this.lastDamageSource,
       impactAngle,
+      ragdollCorpse: this.renderer?.hasRagdollCorpse?.() === true,
     });
 
     // Play death animation if using new renderer
     if (this.renderer) {
       await this.renderer.playDeathAnimation(this.lastDamageSource, impactAngle);
+      // The settled ragdoll becomes the corpse, exactly where it lies
+      const body = this.renderer.takeRagdollCorpse?.();
+      if (body) {
+        this.emit('zombieCorpse', { x: this.position.x, y: this.position.y, body });
+      }
     }
 
     // Mark animation complete so ZombieManager can remove this zombie

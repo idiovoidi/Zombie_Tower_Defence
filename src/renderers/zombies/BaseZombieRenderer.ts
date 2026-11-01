@@ -8,10 +8,12 @@ import { computeHumanoidRigLayout } from './rig/humanoidRigLayout';
 import {
   calculateDeathImpulses,
   createRagdollConfig,
+  createRagdollStyle,
   getDeathBloodConfig,
   getDetachableBones,
 } from './RagdollConfig';
 import { multiplyTint } from '../lighting/zombieLighting';
+import { RagdollGore } from './RagdollGore';
 import { RagdollSkeleton } from './RagdollSkeleton';
 import { ZombieAnimator } from './ZombieAnimator';
 import { ParticleType, ZombieParticleSystem } from './ZombieParticleSystem';
@@ -70,6 +72,10 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
   private isInRagdollDeath = false;
   private ragdollGraphics: Graphics | null = null;
   private ragdollAlpha = 1;
+  private ragdollGore: RagdollGore | null = null;
+  private ragdollGroundY = 18;
+  /** Final resting pose of the ragdoll, handed to the corpse system once it settles. */
+  private restingCorpse: Graphics | null = null;
 
   // Track last known zombie type for ragdoll config
   private zombieTypeName = 'Basic';
@@ -302,16 +308,10 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     if (this.isInRagdollDeath && this.ragdoll) {
       this.ragdoll.update(deltaTime);
 
-      // Render ragdoll onto its dedicated graphics
+      // Render ragdoll onto its dedicated graphics: blood on the ground first, then the body
       if (this.ragdollGraphics && !this.ragdollGraphics.destroyed) {
         this.ragdollGraphics.clear();
-
-        // Fade alpha as ragdoll settles
-        if (this.ragdoll.isSettled()) {
-          this.ragdollAlpha = Math.max(0, this.ragdollAlpha - deltaTime / 2000);
-        }
-
-        this.ragdoll.render(this.ragdollGraphics, this.ragdollAlpha);
+        this.drawRagdollFrame(this.ragdollGraphics, deltaTime);
         this.particles.render(); // Note: ZombieParticleSystem now clears its own graphics
       }
     }
@@ -422,12 +422,10 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
 
     // Detach bones for extreme deaths + any limbs already lost while alive
     const detachable = new Set(getDetachableBones(killer));
-    if (!this.currentLimbs.leftArm) detachable.add('arm_l');
-    if (!this.currentLimbs.rightArm) detachable.add('arm_r');
-    if (!this.currentLimbs.leftLeg) detachable.add('leg_l');
-    if (!this.currentLimbs.rightLeg) detachable.add('leg_r');
     for (const boneName of detachable) {
-      this.ragdoll.detachBone(boneName);
+      if (!this.isLostLimb(boneName)) {
+        this.ragdoll.detachBone(boneName);
+      }
     }
 
     // Add blood emission points
@@ -435,6 +433,36 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     for (const bp of bloodConfig) {
       this.ragdoll.addBloodEmitPoint(bp.boneName, bp.boneT, bp.rate, bp.duration);
     }
+    // Torn-off parts spurt from both the stump and the severed end
+    let bloodAmount = bloodConfig.reduce((sum, bp) => sum + (bp.rate * bp.duration) / 1000, 0);
+    for (const boneName of detachable) {
+      if (this.isLostLimb(boneName)) continue;
+      const tornFromHead = boneName === 'head';
+      this.ragdoll.addBloodEmitPoint(boneName, 0, 18, 900);
+      this.ragdoll.addBloodEmitPoint(
+        'torso',
+        tornFromHead ? 0 : boneName.startsWith('leg') ? 1 : 0.1,
+        26,
+        1100
+      );
+      bloodAmount += 40;
+    }
+
+    // Killer-specific wounds, tint and blood colour; lost limbs stay missing
+    const style = createRagdollStyle(this.zombieTypeName, killer);
+    this.ragdoll.setStyle(style);
+    for (const boneName of ['arm_l', 'arm_r', 'leg_l', 'leg_r']) {
+      if (this.isLostLimb(boneName)) {
+        this.ragdoll.removeLimb(boneName);
+      }
+    }
+    this.ragdollGroundY = config.groundY;
+    this.ragdollGore = new RagdollGore(
+      style.blood ?? 0x7a0a0a,
+      config.bones[0].length,
+      bloodAmount
+    );
+    this.ragdoll.onGroundHit = (x, y, speed) => this.ragdollGore?.addSplat(x, y, speed);
 
     // Wire ragdoll blood emission to particle system
     this.ragdoll.onBloodEmit = (x, y, vx, vy) => {
@@ -500,6 +528,7 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
         if (!this.ragdoll || this.ragdoll.isSettled()) {
           // Give a brief fade-out period after settlement
           setTimeout(() => {
+            this.captureRestingCorpse();
             this.isInRagdollDeath = false;
             if (this.ragdollGraphics && !this.ragdollGraphics.destroyed) {
               this.ragdollGraphics.destroy();
@@ -514,6 +543,60 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
       };
       this.deathAnimationFrame = requestAnimationFrame(checkDone);
     });
+  }
+
+  private isLostLimb(boneName: string): boolean {
+    switch (boneName) {
+      case 'arm_l':
+        return !this.currentLimbs.leftArm;
+      case 'arm_r':
+        return !this.currentLimbs.rightArm;
+      case 'leg_l':
+        return !this.currentLimbs.leftLeg;
+      case 'leg_r':
+        return !this.currentLimbs.rightLeg;
+      default:
+        return false;
+    }
+  }
+
+  private captureRestingCorpse(): void {
+    if (!this.ragdoll) {
+      return;
+    }
+    const g = new Graphics();
+    this.ragdollGore?.draw(g, 1);
+    this.ragdoll.render(g, 1);
+    this.restingCorpse = g;
+  }
+
+  private drawRagdollFrame(g: Graphics, deltaTime: number): void {
+    if (!this.ragdoll) {
+      return;
+    }
+    this.ragdollGore?.update(
+      deltaTime,
+      this.ragdoll.getCenterOfMass().x,
+      this.ragdollGroundY,
+      this.ragdoll.isSettled()
+    );
+    this.ragdollGore?.draw(g, this.ragdollAlpha);
+    this.ragdoll.render(g, this.ragdollAlpha);
+  }
+
+  /** Renderers with their own death effect (dissolve, flicker) opt out of leaving a ragdoll corpse. */
+  public hasRagdollCorpse(): boolean {
+    return true;
+  }
+
+  /**
+   * Take the settled ragdoll as a static drawing (blood pool + body) for the corpse system.
+   * Returns null if the renderer had no ragdoll to hand over. Ownership passes to the caller.
+   */
+  public takeRagdollCorpse(): Graphics | null {
+    const corpse = this.restingCorpse;
+    this.restingCorpse = null;
+    return corpse;
   }
 
   /**
@@ -565,11 +648,16 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     // Clean up ragdoll state
     this.isInRagdollDeath = false;
     this.ragdoll = null;
+    this.ragdollGore = null;
     this.ragdollAlpha = 1;
     if (this.ragdollGraphics && !this.ragdollGraphics.destroyed) {
       this.ragdollGraphics.destroy();
       this.ragdollGraphics = null;
     }
+    if (this.restingCorpse && !this.restingCorpse.destroyed) {
+      this.restingCorpse.destroy();
+    }
+    this.restingCorpse = null;
   }
 
   destroy(): void {

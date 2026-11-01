@@ -175,6 +175,11 @@ export class MechanicalZombieRenderer extends BaseZombieRenderer {
   }
 
   // Mechanical has a flicker phase — fully override
+  // Dissolves/flickers instead of collapsing, so the corpse system draws its own wreck
+  override hasRagdollCorpse(): boolean {
+    return false;
+  }
+
   override async playDeathAnimation(_killerType?: string): Promise<void> {
     return playParticleDeathAnimation({
       container: this.container,

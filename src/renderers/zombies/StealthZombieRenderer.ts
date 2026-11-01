@@ -84,6 +84,11 @@ export class StealthZombieRenderer extends HumanoidZombieRenderer {
     this.fadePhase += deltaTime * 0.002;
   }
 
+  // Dissolves/flickers instead of collapsing, so the corpse system draws its own wreck
+  override hasRagdollCorpse(): boolean {
+    return false;
+  }
+
   override async playDeathAnimation(_killerType?: string): Promise<void> {
     return playParticleDeathAnimation({
       container: this.container,

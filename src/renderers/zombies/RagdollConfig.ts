@@ -1,4 +1,9 @@
-import type { RagdollImpulse, RagdollSkeletonConfig } from './RagdollSkeleton';
+import type {
+  RagdollImpulse,
+  RagdollSkeletonConfig,
+  RagdollStyle,
+  TorsoWound,
+} from './RagdollSkeleton';
 
 /**
  * Zombie body color palettes per type for ragdoll bones.
@@ -25,83 +30,57 @@ export function createRagdollConfig(zombieType: string, groundY = 20): RagdollSk
   const scale = getScaleForType(zombieType);
   const massScale = getMassScaleForType(zombieType);
 
+  const limb = (
+    name: string,
+    parent: string,
+    attachT: number,
+    angle: number,
+    length: number,
+    mass: number,
+    width: number,
+    color = colors.skin
+  ) => ({
+    name,
+    parent,
+    offsetX: 0,
+    offsetY: 0,
+    attachT,
+    angle,
+    length: length * scale,
+    mass: mass * massScale,
+    width: width * scale,
+    color,
+  });
+
   return {
     bones: [
-      // Torso (root bone) - vertical, pointing downward from shoulders
+      // Torso (root): shoulders at the top, hips at the tip
       {
         name: 'torso',
         parent: null,
         offsetX: 0,
         offsetY: -4 * scale,
-        angle: Math.PI / 2, // Pointing down
-        length: 12 * scale,
+        angle: Math.PI / 2,
+        length: 11 * scale,
         mass: 8 * massScale,
-        width: 10 * scale,
+        width: 9 * scale,
         color: colors.skin,
       },
-      // Head - attached to top of torso
-      {
-        name: 'head',
-        parent: 'torso',
-        offsetX: 0,
-        offsetY: 0,
-        angle: -Math.PI / 2, // Pointing up from torso top
-        length: 8 * scale,
-        mass: 3 * massScale,
-        width: 8 * scale,
-        color: colors.skin,
-      },
-      // Left arm
-      {
-        name: 'arm_l',
-        parent: 'torso',
-        offsetX: 0,
-        offsetY: 0,
-        angle: Math.PI * 0.7, // Reaching forward-down-left
-        length: 10 * scale,
-        mass: 1.5 * massScale,
-        width: 3.5 * scale,
-        color: colors.skin,
-      },
-      // Right arm
-      {
-        name: 'arm_r',
-        parent: 'torso',
-        offsetX: 0,
-        offsetY: 0,
-        angle: Math.PI * 0.3, // Reaching forward-down-right
-        length: 10 * scale,
-        mass: 1.5 * massScale,
-        width: 3.5 * scale,
-        color: colors.skin,
-      },
-      // Left leg
-      {
-        name: 'leg_l',
-        parent: 'torso',
-        offsetX: 0,
-        offsetY: 0,
-        angle: Math.PI / 2 + 0.2, // Slightly splayed
-        length: 10 * scale,
-        mass: 2.5 * massScale,
-        width: 4.5 * scale,
-        color: colors.dark,
-      },
-      // Right leg
-      {
-        name: 'leg_r',
-        parent: 'torso',
-        offsetX: 0,
-        offsetY: 0,
-        angle: Math.PI / 2 - 0.2, // Slightly splayed
-        length: 10 * scale,
-        mass: 2.5 * massScale,
-        width: 4.5 * scale,
-        color: colors.dark,
-      },
+      // Head rises from the shoulders on a short neck
+      limb('head', 'torso', 0, -Math.PI / 2, 7, 3, 8),
+      // Arms hang from the shoulders (just below the top of the torso), elbow then forearm
+      limb('arm_l', 'torso', 0.08, Math.PI * 0.62, 5.5, 1.2, 3.6),
+      limb('forearm_l', 'arm_l', 1, Math.PI * 0.55, 5.5, 0.9, 3.2),
+      limb('arm_r', 'torso', 0.08, Math.PI * 0.38, 5.5, 1.2, 3.6),
+      limb('forearm_r', 'arm_r', 1, Math.PI * 0.45, 5.5, 0.9, 3.2),
+      // Legs hang from the hips, knee then shin
+      limb('leg_l', 'torso', 1, Math.PI / 2 + 0.12, 5.5, 1.6, 4.6, colors.dark),
+      limb('shin_l', 'leg_l', 1, Math.PI / 2 + 0.05, 5.5, 1.1, 4, colors.dark),
+      limb('leg_r', 'torso', 1, Math.PI / 2 - 0.12, 5.5, 1.6, 4.6, colors.dark),
+      limb('shin_r', 'leg_r', 1, Math.PI / 2 - 0.05, 5.5, 1.1, 4, colors.dark),
     ],
     constraints: [
-      // Head-torso: limited neck movement
+      // Neck: limited movement
       {
         boneA: 'torso',
         boneB: 'head',
@@ -109,7 +88,7 @@ export function createRagdollConfig(zombieType: string, groundY = 20): RagdollSk
         maxAngle: -Math.PI * 0.4,
         stiffness: 0.6,
       },
-      // Arms: wide range of motion
+      // Shoulders: wide range
       {
         boneA: 'torso',
         boneB: 'arm_l',
@@ -124,25 +103,19 @@ export function createRagdollConfig(zombieType: string, groundY = 20): RagdollSk
         maxAngle: Math.PI * 0.2,
         stiffness: 0.3,
       },
-      // Legs: limited hip range
-      {
-        boneA: 'torso',
-        boneB: 'leg_l',
-        minAngle: -0.8,
-        maxAngle: 0.8,
-        stiffness: 0.5,
-      },
-      {
-        boneA: 'torso',
-        boneB: 'leg_r',
-        minAngle: -0.8,
-        maxAngle: 0.8,
-        stiffness: 0.5,
-      },
+      // Elbows only fold one way
+      { boneA: 'arm_l', boneB: 'forearm_l', minAngle: -2.3, maxAngle: 0.15, stiffness: 0.5 },
+      { boneA: 'arm_r', boneB: 'forearm_r', minAngle: -0.15, maxAngle: 2.3, stiffness: 0.5 },
+      // Hips: limited range
+      { boneA: 'torso', boneB: 'leg_l', minAngle: -0.8, maxAngle: 0.8, stiffness: 0.5 },
+      { boneA: 'torso', boneB: 'leg_r', minAngle: -0.8, maxAngle: 0.8, stiffness: 0.5 },
+      // Knees only fold backwards
+      { boneA: 'leg_l', boneB: 'shin_l', minAngle: -0.1, maxAngle: 2.2, stiffness: 0.55 },
+      { boneA: 'leg_r', boneB: 'shin_r', minAngle: -2.2, maxAngle: 0.1, stiffness: 0.55 },
     ],
     gravity: getGravityForType(zombieType),
     damping: getDampingForType(zombieType),
-    groundY,
+    groundY: groundY * scale,
     bounce: 0.2,
     friction: 0.7,
     eyeColor: colors.eye,
@@ -532,4 +505,58 @@ export function getDeathBloodConfig(killerType: string): Array<{
         { boneName: 'head', boneT: 0.7, rate: 12, duration: 700 },
       ];
   }
+}
+
+/**
+ * What this particular death looks like: wounds from the weapon that killed it, burn/charring,
+ * and blood colour. Random placement is seeded by the caller's randomness, not fixed.
+ */
+export function createRagdollStyle(zombieType: string, killerType: string): RagdollStyle {
+  const style: RagdollStyle = {};
+  const rnd = (a: number, b: number): number => a + Math.random() * (b - a);
+  if (zombieType === 'Armored') {
+    style.armor = 0x5a5a5a;
+  }
+  if (zombieType === 'Mechanical') {
+    style.blood = 0x1a1a1a;
+  } else if (zombieType === 'NecroTank') {
+    style.blood = 0x3a0a2a;
+  }
+  const wounds: TorsoWound[] = [];
+  switch (killerType) {
+    case 'Shotgun':
+      for (let i = 0; i < 3; i++) {
+        wounds.push({ t: rnd(0.2, 0.6), s: rnd(-0.6, 0.6), radius: rnd(1.4, 2.2), kind: 'burst' });
+      }
+      for (let i = 0; i < 4; i++) {
+        wounds.push({ t: rnd(0.1, 0.8), s: rnd(-0.8, 0.8), radius: 0.8, kind: 'hole' });
+      }
+      break;
+    case 'Sniper':
+      style.headWound = true;
+      break;
+    case 'Grenade':
+      for (let i = 0; i < 3; i++) {
+        wounds.push({ t: rnd(0.1, 0.9), s: rnd(-0.7, 0.7), radius: rnd(1.5, 2.6), kind: 'char' });
+      }
+      wounds.push({ t: 0.45, s: rnd(-0.3, 0.3), radius: 2.4, kind: 'burst' });
+      break;
+    case 'Flame':
+      style.tint = 0x555555;
+      for (let i = 0; i < 4; i++) {
+        wounds.push({ t: rnd(0.1, 0.9), s: rnd(-0.8, 0.8), radius: rnd(1.5, 2.8), kind: 'char' });
+      }
+      break;
+    case 'Tesla':
+      style.tint = 0x8a8a8a;
+      for (let i = 0; i < 3; i++) {
+        wounds.push({ t: rnd(0.1, 0.9), s: rnd(-0.7, 0.7), radius: rnd(2, 3), kind: 'arc' });
+      }
+      break;
+    default:
+      wounds.push({ t: rnd(0.2, 0.6), s: rnd(-0.6, 0.6), radius: 1.2, kind: 'hole' });
+      wounds.push({ t: rnd(0.2, 0.7), s: rnd(-0.6, 0.6), radius: 1, kind: 'hole' });
+  }
+  style.torsoWounds = wounds;
+  return style;
 }

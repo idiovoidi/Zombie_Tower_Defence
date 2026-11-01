@@ -1,4 +1,4 @@
-import type { Container } from 'pixi.js';
+import type { Container, Graphics } from 'pixi.js';
 import type { LimbFlags, LimbId } from '../../components/LimbState';
 
 export interface ZombieRenderState {
@@ -30,6 +30,10 @@ export interface IZombieRenderer {
   onLimbLost?(limb: LimbId): void;
   /** Multiply-tint cast by a nearby coloured light (0xffffff = none). */
   setLightCast?(color: number): void;
+  /** True if death leaves a ragdoll corpse (see takeRagdollCorpse). */
+  hasRagdollCorpse?(): boolean;
+  /** The settled ragdoll as a static drawing; ownership passes to the caller. */
+  takeRagdollCorpse?(): Graphics | null;
 }
 
 export enum AnimationState {
