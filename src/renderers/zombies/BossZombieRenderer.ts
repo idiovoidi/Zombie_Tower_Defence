@@ -41,22 +41,6 @@ export class BossZombieRenderer extends BaseZombieRenderer {
 
     this.finishInitParts();
   }
-
-  protected getAnimationOffsets() {
-    return {
-      leftLegX: -5,
-      leftLegY: 16,
-      rightLegX: 3,
-      rightLegY: 16,
-      torsoY: 10,
-      leftArmX: -9,
-      leftArmY: -6,
-      rightArmX: 9,
-      rightArmY: -6,
-      headY: -20,
-    };
-  }
-
   protected updateWounds(
     healthPercent: number,
     _anim: {

@@ -41,22 +41,6 @@ export class SwarmZombieRenderer extends BaseZombieRenderer {
 
     this.finishInitParts();
   }
-
-  protected getAnimationOffsets() {
-    return {
-      leftLegX: -2,
-      leftLegY: 7,
-      rightLegX: 0.5,
-      rightLegY: 7,
-      torsoY: 4.5,
-      leftArmX: -3,
-      leftArmY: -2.5,
-      rightArmX: 3,
-      rightArmY: -2.5,
-      headY: -8.5,
-    };
-  }
-
   protected updateWounds(
     healthPercent: number,
     _anim: {

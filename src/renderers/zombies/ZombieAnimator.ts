@@ -1,5 +1,6 @@
 import type { LimbFlags } from '../../components/LimbState';
-import { footfallPulse, stepWave } from '../../utils/WalkStagger';
+import { footfallPulse, stepWave, wrapPhase } from '../../utils/WalkStagger';
+import type { JointPose } from './rig/jointPose';
 import { AnimationState } from './ZombieRenderer';
 
 export interface AnimationData {
@@ -15,6 +16,8 @@ export interface AnimationData {
   twitch: number;
   /** Damage-reactive limp factor (0 = healthy, 1 = near death) */
   damageLevel: number;
+  /** Joint angles for the articulated rig (the fields above still drive the legacy part path). */
+  joints: JointPose;
 }
 
 const ALL_LIMBS: LimbFlags = {
@@ -97,8 +100,7 @@ export class ZombieAnimator {
     // Extra limp when one leg is missing
     const missingLeftLeg = !this.limbs.leftLeg;
     const missingRightLeg = !this.limbs.rightLeg;
-    const oneLegLimp =
-      missingLeftLeg !== missingRightLeg ? 0.55 : 0;
+    const oneLegLimp = missingLeftLeg !== missingRightLeg ? 0.55 : 0;
 
     // Stride phase — shaped step waves, not stacked sines
     const stridePhase = time * 4 * speed;
@@ -126,7 +128,40 @@ export class ZombieAnimator {
       ? rightStep * (0.45 + gait.armSwing) + gait.armForwardReach
       : 0;
 
+    // ---- Articulated rig joints ------------------------------------------------------------
+    // Legs alternate; the knee flexes through each leg's forward swing, so the foot visibly lifts
+    const hipAmp = 0.15 + 0.1 * gait.legStride;
+    const kneeAmp = 0.5 + 0.3 * gait.legStride;
+    const liftL = missingLeftLeg ? 0 : Math.max(0, Math.cos(wrapPhase(stridePhase))) ** 1.4;
+    const liftR = missingRightLeg
+      ? 0
+      : Math.max(0, Math.cos(wrapPhase(stridePhase + Math.PI))) ** 1.4;
+
+    // Arms counter-swing the opposite leg, hanging slightly out from the body with bent elbows
+    const armAmp = 0.12 + gait.armSwing * 0.55;
+    const armBase = 0.16 + gait.armForwardReach * 0.35;
+    const elbowBase = 0.45 + gait.armForwardReach * 0.5;
+
+    const sway = leftStep - rightStep;
+    const joints: JointPose = {
+      hipL: leftStep * hipAmp,
+      hipR: rightStep * hipAmp,
+      kneeL: 0.06 + liftL * kneeAmp,
+      kneeR: 0.06 + liftR * kneeAmp,
+      shoulderL: this.limbs.leftArm ? armBase + rightStep * armAmp + this.damageLevel * 0.1 : 0,
+      shoulderR: this.limbs.rightArm ? armBase + leftStep * armAmp : 0,
+      elbowL: elbowBase + Math.max(0, -rightStep) * 0.35,
+      elbowR: elbowBase + Math.max(0, -leftStep) * 0.35,
+      // Torso rolls with the stride and sags toward the dragged side when hurt
+      torsoLean: sway * 0.035 + limpDrag * 0.05,
+      pelvisSway: sway * 0.3,
+      // The head lags the torso: a delayed, softer wave plus damage twitches
+      headTilt: headStep * (0.08 + gait.headBobIntensity * 0.4) + this.twitchValue * 0.3,
+      headShift: headStep * 0.5 * gait.headSwayAmp + this.twitchValue * 0.3,
+    };
+
     return {
+      joints,
       bodyBob: plants * (2 + gait.bobIntensity) + limpHitch + oneLegHitch,
       headTilt: headStep * (0.12 + gait.headBobIntensity) + this.twitchValue * 0.3,
       headSway:
@@ -159,7 +194,24 @@ export class ZombieAnimator {
     // Legs tucked under when present (critical HP crawl); gone limbs stay at 0
     const tuck = this.limbs.leftLeg || this.limbs.rightLeg ? 1.5 : 0;
 
+    // Prone drag: arms reach out and pull, legs trail tucked
+    const joints: JointPose = {
+      hipL: this.limbs.leftLeg ? 0.1 : 0,
+      hipR: this.limbs.rightLeg ? 0.1 : 0,
+      kneeL: this.limbs.leftLeg ? 0.9 : 0,
+      kneeR: this.limbs.rightLeg ? 0.9 : 0,
+      shoulderL: this.limbs.leftArm ? 0.9 + pull * 0.45 : 0,
+      shoulderR: this.limbs.rightArm ? 0.9 + opposite * 0.45 : 0,
+      elbowL: 0.7 + Math.max(0, -pull) * 0.5,
+      elbowR: 0.7 + Math.max(0, -opposite) * 0.5,
+      torsoLean: (pull - opposite) * 0.05 + 0.12,
+      pelvisSway: (pull - opposite) * 0.4,
+      headTilt: pull * 0.12 + 0.2 + this.twitchValue * 0.2,
+      headShift: opposite * 0.5 + this.twitchValue * 0.3,
+    };
+
     return {
+      joints,
       bodyBob: 10 + groundBob * 1.5 + this.twitchValue * 0.4,
       headTilt: pull * 0.15 + 0.25 + this.twitchValue * 0.2,
       headSway: opposite * 1.2 + this.twitchValue * 0.5,
@@ -314,7 +366,23 @@ export class ZombieAnimator {
     const twitch = Math.sin(time * 7.3) * 0.1;
     const damagetwitch = this.damageLevel * Math.sin(time * 11.7) * 0.15;
 
+    const joints: JointPose = {
+      hipL: 0,
+      hipR: 0,
+      kneeL: 0.05,
+      kneeR: 0.05,
+      shoulderL: this.limbs.leftArm ? 0.18 + breathe * 0.04 + this.damageLevel * 0.1 : 0,
+      shoulderR: this.limbs.rightArm ? 0.16 + Math.sin(time * 1.5 + 0.7) * 0.04 : 0,
+      elbowL: 0.4 + breathe * 0.05,
+      elbowR: 0.4 + Math.sin(time * 1.5 + 0.7) * 0.05,
+      torsoLean: Math.sin(time * 0.9) * 0.015 + this.damageLevel * 0.03,
+      pelvisSway: 0,
+      headTilt: Math.sin(time * 1.2) * 0.06 + this.twitchValue * 0.3,
+      headShift: Math.sin(time * 1.3) * 0.3 + this.twitchValue * 0.3,
+    };
+
     return {
+      joints,
       bodyBob: breathe * 0.8 + twitch + damagetwitch,
       headTilt: Math.sin(time * 1.2) * 0.08 + twitch * 0.5 + this.twitchValue * 0.4,
       headSway: Math.sin(time * 1.3) * 0.5 + Math.sin(time * 3.7) * 0.2 + this.twitchValue * 0.6,

@@ -41,22 +41,6 @@ export class TankZombieRenderer extends BaseZombieRenderer {
 
     this.finishInitParts();
   }
-
-  protected getAnimationOffsets() {
-    return {
-      leftLegX: -4,
-      leftLegY: 12,
-      rightLegX: 2,
-      rightLegY: 12,
-      torsoY: 8,
-      leftArmX: -7,
-      leftArmY: -5,
-      rightArmX: 7,
-      rightArmY: -5,
-      headY: -16,
-    };
-  }
-
   protected updateWounds(
     healthPercent: number,
     _anim: {

@@ -40,22 +40,6 @@ export class FastZombieRenderer extends BaseZombieRenderer {
 
     this.finishInitParts();
   }
-
-  protected getAnimationOffsets() {
-    return {
-      leftLegX: -2.5,
-      leftLegY: 10,
-      rightLegX: 0.5,
-      rightLegY: 10,
-      torsoY: 5.5,
-      leftArmX: -4,
-      leftArmY: -3.5,
-      rightArmX: 4,
-      rightArmY: -3.5,
-      headY: -11.5,
-    };
-  }
-
   protected updateWounds(
     healthPercent: number,
     _anim: {

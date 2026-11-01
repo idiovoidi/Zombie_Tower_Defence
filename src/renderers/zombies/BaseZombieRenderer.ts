@@ -1,7 +1,10 @@
 import { Container, Graphics } from 'pixi.js';
 import type { LimbFlags, LimbId } from '../../components/LimbState';
 import { EffectCleanupManager } from '../../utils/EffectCleanupManager';
-import { createHumanoidParts, type HumanoidPartOptions } from './HumanoidPartBuilder';
+import { createHumanoidShadow, type HumanoidPartOptions } from './HumanoidPartBuilder';
+import { applyHumanoidPose } from './rig/applyHumanoidPose';
+import { assembleHumanoidRig, createHumanoidRig, type HumanoidRigParts } from './rig/HumanoidRig';
+import { computeHumanoidRigLayout } from './rig/humanoidRigLayout';
 import {
   calculateDeathImpulses,
   createRagdollConfig,
@@ -73,13 +76,11 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
 
   // Common skeletal parts (shared across all zombie renderers)
   protected shadowPart!: Graphics;
-  protected leftLegPart!: Graphics;
-  protected rightLegPart!: Graphics;
   protected torsoPart!: Graphics;
   protected headPart!: Graphics;
-  protected leftArmPart!: Graphics;
-  protected rightArmPart!: Graphics;
   protected woundsPart!: Graphics;
+  /** Articulated skeleton shared by every zombie type (built in buildHumanoidParts). */
+  protected rig!: HumanoidRigParts;
   protected lastHealthPercent = 1.0;
 
   // Tint = base (health / burning / phase colour) x light cast (nearby fire, explosions, arcs)
@@ -144,8 +145,7 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
       this.currentLimbs = state.limbs;
     }
 
-    // Apply skeletal animation with subclass-provided offsets
-    this.applySkeletalAnimation(anim, this.getAnimationOffsets());
+    applyHumanoidPose(this.rig, anim.joints, anim.bodyBob);
     this.applyLimbVisibility(this.currentLimbs);
 
     // Update wounds if health changed significantly
@@ -166,22 +166,6 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
       container.addChild(this.container);
     }
   }
-
-  /**
-   * Subclasses provide their animation offsets.
-   */
-  protected abstract getAnimationOffsets(): {
-    leftLegX: number;
-    leftLegY: number;
-    rightLegX: number;
-    rightLegY: number;
-    torsoY: number;
-    leftArmX: number;
-    leftArmY: number;
-    rightArmX: number;
-    rightArmY: number;
-    headY: number;
-  };
 
   /**
    * Subclasses implement wound update logic.
@@ -228,14 +212,26 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     palette: HumanoidPartOptions,
     shadow?: { y?: number; size?: number }
   ): void {
-    const parts = createHumanoidParts(palette, shadow);
-    this.shadowPart = parts.shadow;
-    this.leftLegPart = parts.leftLeg;
-    this.rightLegPart = parts.rightLeg;
-    this.torsoPart = parts.torso;
-    this.headPart = parts.head;
-    this.leftArmPart = parts.leftArm;
-    this.rightArmPart = parts.rightArm;
+    const scale = palette.scale ?? 1;
+    const groundY = shadow?.y ?? 15 * scale;
+    const layout = computeHumanoidRigLayout(palette, groundY);
+    const rig = createHumanoidRig(palette, layout);
+
+    this.rig = rig;
+    this.shadowPart = createHumanoidShadow(groundY, shadow?.size ?? 8 * scale);
+    // Parts that subclasses may still decorate (Stealth draws an aura on the head)
+    this.torsoPart = rig.torso;
+    this.headPart = rig.head;
+  }
+
+  /**
+   * Y of the head centre in the wounds layer's space (origin = torso centre), for effects that
+   * mark the head. Falls back to the legacy value when there is no rig.
+   */
+  protected headCenterInWoundsSpace(): number {
+    const l = this.rig.layout;
+    const headCenterTorsoSpace = l.neckTopY + 0.6 * l.scale - l.headPivotDrop;
+    return headCenterTorsoSpace + l.torsoH / 2;
   }
 
   /** Shared tail for initParts — creates wounds layer and registers skeletal parts. */
@@ -271,65 +267,9 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
    */
   protected addPartsToContainer(): void {
     this.container.addChild(this.shadowPart);
-    this.container.addChild(this.leftLegPart);
-    this.container.addChild(this.rightLegPart);
-    this.container.addChild(this.leftArmPart);
-    this.container.addChild(this.torsoPart);
-    this.container.addChild(this.woundsPart);
-    this.container.addChild(this.rightArmPart);
-    this.container.addChild(this.headPart);
+    assembleHumanoidRig(this.rig, this.woundsPart);
+    this.container.addChild(this.rig.body);
     this.container.addChild(this.particles.getGraphics());
-  }
-
-  /**
-   * Apply common render logic for skeletal parts.
-   * This is shared across all zombie renderers with customizable offsets.
-   */
-  protected applySkeletalAnimation(
-    anim: {
-      leftLegOffset: number;
-      rightLegOffset: number;
-      bodyBob: number;
-      leftArmAngle: number;
-      rightArmAngle: number;
-      headSway: number;
-      headTilt?: number;
-      limbSwing?: number;
-    },
-    offsets: {
-      leftLegX: number;
-      leftLegY: number;
-      rightLegX: number;
-      rightLegY: number;
-      torsoY: number;
-      leftArmX: number;
-      leftArmY: number;
-      rightArmX: number;
-      rightArmY: number;
-      headY: number;
-    }
-  ): void {
-    this.leftLegPart.position.set(offsets.leftLegX + anim.leftLegOffset, offsets.leftLegY);
-    this.rightLegPart.position.set(offsets.rightLegX + anim.rightLegOffset, offsets.rightLegY);
-
-    const torsoY = anim.bodyBob + offsets.torsoY;
-    // Light torso lean from limb swing so walk reads less stiff
-    const torsoLean = (anim.limbSwing ?? 0) * 0.08;
-    this.torsoPart.position.set(0, torsoY);
-    this.torsoPart.rotation = torsoLean;
-    this.woundsPart.position.set(0, torsoY);
-    this.woundsPart.rotation = torsoLean;
-
-    this.leftArmPart.position.set(offsets.leftArmX, torsoY + offsets.leftArmY);
-    this.leftArmPart.rotation = anim.leftArmAngle - Math.PI / 2;
-    this.leftArmPart.alpha = 0.7;
-
-    this.rightArmPart.position.set(offsets.rightArmX, torsoY + offsets.rightArmY);
-    this.rightArmPart.rotation = anim.rightArmAngle - Math.PI / 2;
-    this.rightArmPart.alpha = 1.0;
-
-    this.headPart.position.set(anim.headSway, torsoY + offsets.headY);
-    this.headPart.rotation = anim.headTilt ?? 0;
   }
 
   /** Hide detached limbs; keep parts present for pool reuse. */
@@ -337,10 +277,10 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     if (!this.isInitialized) {
       return;
     }
-    this.leftArmPart.visible = limbs.leftArm;
-    this.rightArmPart.visible = limbs.rightArm;
-    this.leftLegPart.visible = limbs.leftLeg;
-    this.rightLegPart.visible = limbs.rightLeg;
+    this.rig.leftArm.root.visible = limbs.leftArm;
+    this.rig.rightArm.root.visible = limbs.rightArm;
+    this.rig.leftLeg.root.visible = limbs.leftLeg;
+    this.rig.rightLeg.root.visible = limbs.rightLeg;
   }
 
   update(deltaTime: number, state: ZombieRenderState): void {

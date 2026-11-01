@@ -1,13 +1,7 @@
 import { Graphics } from 'pixi.js';
 import { GlowEffect } from './components/ZombieEffects';
-import {
-  createHumanoidArm,
-  createHumanoidHead,
-  createHumanoidLegs,
-  createHumanoidShadow,
-  createHumanoidTorso,
-} from './HumanoidPartBuilder';
 import { HumanoidZombieRenderer } from './HumanoidZombieRenderer';
+import type { HumanoidRigParts } from './rig/HumanoidRig';
 import { ParticleType } from './ZombieParticleSystem';
 
 export class ArmoredZombieRenderer extends HumanoidZombieRenderer {
@@ -47,31 +41,13 @@ export class ArmoredZombieRenderer extends HumanoidZombieRenderer {
       strokeAlpha: 0.5,
     };
 
-    this.shadowPart = createHumanoidShadow(15, 9);
+    // Same articulated skeleton as the other humanoids; the armour is drawn onto its parts
+    this.buildHumanoidParts(flesh, { y: 15, size: 9 });
+    const rig = this.rig;
+    this.addArmorToTorso(rig.torso, rig.layout.torsoH);
+    this.addArmorToLimbs(rig);
 
-    // Flesh legs under armor plates
-    const legs = createHumanoidLegs(flesh);
-    this.leftLegPart = legs.leftLeg;
-    this.rightLegPart = legs.rightLeg;
-    this.leftLegPart.rect(-1.6, 0, 3.2, 5.5).fill({ color: this.PRIMARY_COLOR, alpha: 0.85 });
-    this.leftLegPart.stroke({ color: 0x000000, width: 0.5, alpha: 0.5 });
-    this.rightLegPart.rect(-1.6, 0, 3.2, 5.5).fill({ color: this.PRIMARY_COLOR, alpha: 0.85 });
-    this.rightLegPart.stroke({ color: 0x000000, width: 0.5, alpha: 0.5 });
-
-    this.torsoPart = createHumanoidTorso(flesh);
-    // Armor plates over flesh
-    this.torsoPart.rect(-5, -4, 10, 3).fill({ color: this.LIGHT_GRAY, alpha: 0.75 });
-    this.torsoPart.rect(-5, -4, 10, 3).stroke({ color: this.DARK_GRAY, width: 0.5 });
-    this.torsoPart.rect(-5, 1, 10, 3).fill({ color: this.LIGHT_GRAY, alpha: 0.75 });
-    this.torsoPart.rect(-5, 1, 10, 3).stroke({ color: this.DARK_GRAY, width: 0.5 });
-    this.torsoPart.rect(-4, -0.5, 8, 1).fill({ color: this.ZOMBIE_GREEN, alpha: 0.9 });
-    this.drawRivet(this.torsoPart, -4, -3);
-    this.drawRivet(this.torsoPart, 4, -3);
-    this.drawRivet(this.torsoPart, -4, 2);
-    this.drawRivet(this.torsoPart, 4, 2);
-
-    this.headPart = createHumanoidHead(flesh);
-    // Box helmet over head
+    // Box helmet over the head (head is drawn around its own centre)
     this.headPart.rect(-4.5, -4.5, 9, 8).fill({ color: this.PRIMARY_COLOR, alpha: 0.92 });
     this.headPart.rect(-4.5, -4.5, 9, 8).stroke({ color: 0x000000, width: 1, alpha: 0.6 });
     this.headPart.rect(-4.5, -4.5, 9, 1.5).fill({ color: this.LIGHT_GRAY, alpha: 0.7 });
@@ -82,24 +58,62 @@ export class ArmoredZombieRenderer extends HumanoidZombieRenderer {
     this.headPart.circle(-2, -0.5, 0.6).fill(this.EYE_GLOW);
     this.headPart.circle(2, -0.5, 0.6).fill(this.EYE_GLOW);
 
-    this.leftArmPart = createHumanoidArm(flesh, 'left');
-    this.overlayArmoredArm(this.leftArmPart);
-    this.rightArmPart = createHumanoidArm(flesh, 'right');
-    this.overlayArmoredArm(this.rightArmPart);
-
     this.finishInitParts();
   }
 
-  private overlayArmoredArm(arm: Graphics): void {
-    arm.moveTo(0, 0).lineTo(0, 7).stroke({ color: this.PRIMARY_COLOR, width: 2.8, alpha: 0.85 });
-    arm.circle(0, 3.5, 1.2).fill(this.ZOMBIE_GREEN);
-    arm.circle(0, 7, 1.8).fill(this.PRIMARY_COLOR);
-    arm.circle(0, 7, 1).fill(this.DARK_GRAY);
+  /** Chest and belly plates over the flesh torso (torso space: origin at the hips). */
+  private addArmorToTorso(torso: Graphics, torsoH: number): void {
+    const cy = -torsoH / 2; // the old plates were authored around the torso centre
+    torso.rect(-5, cy - 4, 10, 3).fill({ color: this.LIGHT_GRAY, alpha: 0.75 });
+    torso.rect(-5, cy - 4, 10, 3).stroke({ color: this.DARK_GRAY, width: 0.5 });
+    torso.rect(-5, cy + 1, 10, 3).fill({ color: this.LIGHT_GRAY, alpha: 0.75 });
+    torso.rect(-5, cy + 1, 10, 3).stroke({ color: this.DARK_GRAY, width: 0.5 });
+    torso.rect(-4, cy - 0.5, 8, 1).fill({ color: this.ZOMBIE_GREEN, alpha: 0.9 });
+    this.drawRivet(torso, -4, cy - 3);
+    this.drawRivet(torso, 4, cy - 3);
+    this.drawRivet(torso, -4, cy + 2);
+    this.drawRivet(torso, 4, cy + 2);
+  }
+
+  /** Greaves on the shins, and pauldron-and-bracer sleeves on the arms. */
+  private addArmorToLimbs(rig: HumanoidRigParts): void {
+    const { layout } = rig;
+    for (const leg of [rig.leftLeg, rig.rightLeg]) {
+      const w = layout.shinW * 1.25;
+      leg.lower
+        .rect(-w / 2, layout.shinLen * 0.12, w, layout.shinLen * 0.62)
+        .fill({ color: this.PRIMARY_COLOR, alpha: 0.9 });
+      leg.lower
+        .rect(-w / 2, layout.shinLen * 0.12, w, layout.shinLen * 0.62)
+        .stroke({ color: this.DARK_GRAY, width: 0.5 });
+    }
+    for (const arm of [rig.leftArm, rig.rightArm]) {
+      // Upper-arm sleeve with a rounded pauldron at the shoulder
+      arm.upper
+        .moveTo(0, 0)
+        .lineTo(0, layout.upperArmLen * 0.9)
+        .stroke({ color: this.PRIMARY_COLOR, width: layout.upperArmW * 1.25, alpha: 0.9 });
+      arm.upper.circle(0, 0, layout.upperArmW * 0.85).fill(this.PRIMARY_COLOR);
+      arm.upper.circle(0, 0, layout.upperArmW * 0.45).fill(this.DARK_GRAY);
+      // Bracer and gauntlet on the forearm
+      const gauntlet = new Graphics();
+      gauntlet
+        .moveTo(0, layout.foreArmLen * 0.15)
+        .lineTo(0, layout.foreArmLen)
+        .stroke({ color: this.PRIMARY_COLOR, width: layout.foreArmW * 1.3, alpha: 0.9 });
+      gauntlet
+        .circle(0, layout.foreArmLen + layout.handR * 0.2, layout.handR * 1.15)
+        .fill(this.PRIMARY_COLOR);
+      gauntlet
+        .circle(0, layout.foreArmLen + layout.handR * 0.2, layout.handR * 0.6)
+        .fill(this.DARK_GRAY);
+      arm.joint.addChild(gauntlet);
+    }
   }
 
   protected updateWounds(
     healthPercent: number,
-    anim: {
+    _anim: {
       leftLegOffset: number;
       rightLegOffset: number;
       bodyBob: number;
@@ -114,10 +128,10 @@ export class ArmoredZombieRenderer extends HumanoidZombieRenderer {
       this.drawRust(this.woundsPart, healthPercent, 0);
     }
     if (healthPercent < 0.5) {
-      this.woundsPart.circle(anim.headSway - 2, -13, 1).fill({ color: this.DARK_GRAY, alpha: 0.8 });
-      this.woundsPart
-        .circle(anim.headSway + 1.5, -16, 0.8)
-        .fill({ color: this.DARK_GRAY, alpha: 0.8 });
+      // Dents on the helmet: positions are relative to the torso centre, where wounds are drawn
+      const hy = this.headCenterInWoundsSpace();
+      this.woundsPart.circle(-2, hy + 1, 1).fill({ color: this.DARK_GRAY, alpha: 0.8 });
+      this.woundsPart.circle(1.5, hy - 2, 0.8).fill({ color: this.DARK_GRAY, alpha: 0.8 });
     }
   }
 

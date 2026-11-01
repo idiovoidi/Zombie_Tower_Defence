@@ -75,8 +75,7 @@ export class StealthZombieRenderer extends HumanoidZombieRenderer {
   ): void {
     const baseAlpha = 0.5 + Math.sin(this.fadePhase) * 0.1;
     this.shadowPart.alpha = baseAlpha * 0.3;
-    this.leftArmPart.alpha = 0.7 * baseAlpha;
-    this.rightArmPart.alpha = 1.0 * baseAlpha;
+    // Rigged limbs fade with the container (per-limb alpha would show the body through the arms)
     this.container.alpha = baseAlpha;
   }
 

@@ -45,22 +45,6 @@ export class NecroTankRenderer extends BaseZombieRenderer {
 
     this.finishInitParts();
   }
-
-  protected getAnimationOffsets() {
-    return {
-      leftLegX: -4.5,
-      leftLegY: 14,
-      rightLegX: 2.5,
-      rightLegY: 14,
-      torsoY: 9,
-      leftArmX: -8,
-      leftArmY: -5.5,
-      rightArmX: 8,
-      rightArmY: -5.5,
-      headY: -18,
-    };
-  }
-
   protected updateWounds(
     healthPercent: number,
     _anim: {
