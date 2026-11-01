@@ -219,6 +219,13 @@ export class LightingManager {
     this.notify(); // one notification covers both the new light and the new tint
   }
 
+  /** Begin a new day at the configured start time (no-op while no cycle is running). */
+  public restartDay(): void {
+    if (this.cycleSeconds > 0) {
+      this.setTimeOfDay(LIGHTING.DAY_NIGHT.START_PHASE);
+    }
+  }
+
   public getTimeOfDayPhase(): number {
     return this.phase;
   }

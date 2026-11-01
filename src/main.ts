@@ -15,6 +15,8 @@ import {
 import { GameManager } from './managers/GameManager';
 import { InputManager } from './managers/InputManager';
 import { TimeControlManager } from './managers/TimeControlManager';
+import { LIGHTING } from './config/lightingConstants';
+import { parseDayNightSeconds } from './renderers/lighting/dayNightConfig';
 import { lightingManager } from './renderers/lighting/LightingManager';
 import { DebugUtils } from './utils/DebugUtils';
 
@@ -38,11 +40,11 @@ function isSurfaceShadingRequested(): boolean {
 }
 
 function requestedDayNightSeconds(): number {
+  const fallback = LIGHTING.DAY_NIGHT.DEFAULT_CYCLE_SECONDS;
   try {
-    const value = Number(new URLSearchParams(window.location.search).get('daynight'));
-    return Number.isFinite(value) && value > 0 ? value : 0;
+    return parseDayNightSeconds(window.location.search, fallback);
   } catch {
-    return 0;
+    return fallback;
   }
 }
 
@@ -52,10 +54,11 @@ function requestedDayNightSeconds(): number {
   // GPU surface shading on tower bases (needs WebGL); ?shading=0 turns it off
   lightingManager.setSurfaceShadingEnabled(isSurfaceShadingRequested());
 
-  // Optional day/night cycle: ?daynight=SECONDS (game seconds per full day)
+  // Day/night cycle (on by default). Each run restarts the day (see GameManager).
   const dayNightSeconds = requestedDayNightSeconds();
   if (dayNightSeconds > 0) {
     lightingManager.setDayNightCycle(dayNightSeconds);
+    lightingManager.restartDay();
   }
 
   DebugUtils.setEnabled(DevConfig.DEBUG.ENABLED);

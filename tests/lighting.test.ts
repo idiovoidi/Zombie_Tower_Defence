@@ -279,3 +279,43 @@ describe('environmental point lights', () => {
     expect(lm.sampleEnvironment(76 * 50, 100).strength).toBeGreaterThan(0); // 100 - 24 = 76
   });
 });
+
+describe('day/night is on by default', () => {
+  test('URL handling: absent = default length, 0 = off, N = custom, junk = default', async () => {
+    const { parseDayNightSeconds } = await import('../src/renderers/lighting/dayNightConfig');
+    const D = 600;
+    expect(parseDayNightSeconds('', D)).toBe(D);
+    expect(parseDayNightSeconds('?skipMenu=1', D)).toBe(D);
+    expect(parseDayNightSeconds('?daynight=', D)).toBe(D);
+    expect(parseDayNightSeconds('?daynight=0', D)).toBe(0);
+    expect(parseDayNightSeconds('?daynight=90', D)).toBe(90);
+    expect(parseDayNightSeconds('?daynight=1.5', D)).toBe(1.5);
+    expect(parseDayNightSeconds('?daynight=abc', D)).toBe(D);
+    expect(parseDayNightSeconds('?daynight=-5', D)).toBe(D);
+    expect(parseDayNightSeconds('?a=1&daynight=45&b=2', D)).toBe(45);
+  });
+
+  test('every run starts in clear morning light, not in the dark', async () => {
+    const { LIGHTING } = await import('../src/config/lightingConstants');
+    const { getTimeOfDay } = await import('../src/renderers/lighting/dayNight');
+    const start = getTimeOfDay(LIGHTING.DAY_NIGHT.START_PHASE);
+    expect(start.tintAlpha).toBeLessThan(0.08);
+    expect(start.angleDeg).toBeLessThan(60); // sun still in the east
+    expect(LIGHTING.DAY_NIGHT.DEFAULT_CYCLE_SECONDS).toBeGreaterThanOrEqual(300);
+  });
+
+  test('restartDay resets to the start time only while a cycle is running', async () => {
+    const { LIGHTING } = await import('../src/config/lightingConstants');
+    const lm = new LightingManager();
+    lm.restartDay(); // no cycle: nothing happens
+    expect(lm.getAmbientTint().alpha).toBe(0);
+    expect(lm.getTimeOfDayPhase()).toBe(0);
+
+    lm.setDayNightCycle(600);
+    lm.update(450_000); // 0.75 of a day: midnight
+    expect(lm.getAmbientTint().alpha).toBeGreaterThan(0.25);
+    lm.restartDay();
+    expect(lm.getTimeOfDayPhase()).toBeCloseTo(LIGHTING.DAY_NIGHT.START_PHASE);
+    expect(lm.getAmbientTint().alpha).toBeLessThan(0.08);
+  });
+});

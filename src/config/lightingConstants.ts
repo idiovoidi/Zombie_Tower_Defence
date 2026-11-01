@@ -88,10 +88,15 @@ export const LIGHTING = {
   },
 
   /**
-   * Optional day/night cycle (off by default; ?daynight=SECONDS or dev.dayNight(seconds)).
-   * Phase 0 = dawn, 0.25 = noon, 0.5 = dusk, 0.75 = midnight.
+   * Day/night cycle, on by default. Phase 0 = dawn, 0.25 = noon, 0.5 = dusk, 0.75 = midnight.
+   * Override with ?daynight=SECONDS (a custom day length) or ?daynight=0 (off); dev.dayNight(seconds)
+   * changes it at runtime.
    */
   DAY_NIGHT: {
+    /** One full day in game seconds. Level 1 runs ~10-12 game minutes, so about one day. */
+    DEFAULT_CYCLE_SECONDS: 600,
+    /** Each run starts here (just after dawn) so the opening minutes are in clear light. */
+    START_PHASE: 0.08,
     /** Re-apply the light only after the phase has moved this much (avoids per-frame redraws). */
     APPLY_STEP: 0.002,
   },

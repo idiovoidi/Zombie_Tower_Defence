@@ -25,11 +25,12 @@
 > (`LightingManager.addPointLight`, capped at 24). Towers within reach get an additive glow in the
 > light's colour, shifted toward the source so it reads as directional; strength falls off
 > quadratically and fades with the light's life. `dev.pointLight(x, y)` drops one for testing.
-> **Day/night cycle (done, opt-in):** `getTimeOfDay(phase)` gives the light angle/elevation and an
-> ambient tint (dawn/dusk amber, midnight blue); the sun/moon crosses right to left so shadows and
-> shading swing across the map. Enable with `?daynight=SECONDS` or `dev.dayNight(seconds)`; jump
-> with `dev.timeOfDay(phase)`. Off by default so the tuned look is unchanged; the cycle runs on game
-> time, so it pauses with the game.
+> **Day/night cycle (done, ON by default):** `getTimeOfDay(phase)` gives the light angle/elevation and
+> an ambient tint (dawn/dusk amber, midnight blue); the sun/moon crosses right to left so shadows and
+> shading swing across the map. One day is 600 game seconds (`DAY_NIGHT.DEFAULT_CYCLE_SECONDS`, about
+> one Level 1 run) and every run starts just after dawn. It runs on game time, so it pauses with the
+> game and runs faster at 2x/4x. `?daynight=0` turns it off, `?daynight=N` sets a custom day length,
+> and `dev.dayNight(seconds)` / `dev.timeOfDay(phase)` change it at runtime. The HUD is never tinted.
 > Not done: a settings UI for any of this, and lighting for zombies (towers only).
 
 ## Overview

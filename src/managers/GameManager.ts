@@ -261,6 +261,8 @@ export class GameManager {
   /** Shared start-of-run reset: clears state, restarts analytics and the wave counter. */
   private resetRunState(): void {
     this.waveManager.setBaseDifficulty(1);
+    // Every run starts in the morning, whatever time the last one ended
+    lightingManager.restartDay();
     this.clearGameState();
     EffectCleanupManager.clearAll();
     LogExporter.newSession();
@@ -303,6 +305,7 @@ export class GameManager {
     }
     this.visualMapRenderer?.renderMap(level.map);
     this.syncCameraToCurrentMap();
+    lightingManager.restartDay(); // menus show the battlefield in daylight, not last run's night
   }
 
   public startGameWithLevel(levelId: string): void {
