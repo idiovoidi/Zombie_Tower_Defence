@@ -8,6 +8,7 @@ import {
   getDeathBloodConfig,
   getDetachableBones,
 } from './RagdollConfig';
+import { multiplyTint } from '../lighting/zombieLighting';
 import { RagdollSkeleton } from './RagdollSkeleton';
 import { ZombieAnimator } from './ZombieAnimator';
 import { ParticleType, ZombieParticleSystem } from './ZombieParticleSystem';
@@ -80,6 +81,11 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
   protected rightArmPart!: Graphics;
   protected woundsPart!: Graphics;
   protected lastHealthPercent = 1.0;
+
+  // Tint = base (health / burning / phase colour) x light cast (nearby fire, explosions, arcs)
+  private baseTint = 0xffffff;
+  private lightCast = 0xffffff;
+  private isFlashing = false;
   private currentLimbs: LimbFlags = {
     leftArm: true,
     rightArm: true,
@@ -372,14 +378,13 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
   }
 
   showDamageEffect(damageType: string, _amount: number): void {
-    const originalTint = this.container.tint;
+    this.isFlashing = true;
     this.container.tint = this.DAMAGE_FLASH_TINT;
     const timeout = EffectCleanupManager.registerTimeout(
       setTimeout(() => {
         EffectCleanupManager.clearTimeout(timeout);
-        if (!this.container.destroyed) {
-          this.container.tint = originalTint;
-        }
+        this.isFlashing = false;
+        this.applyComposedTint();
       }, 100)
     );
 
@@ -593,7 +598,9 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     }
     // Reset container transform and visibility
     this.container.alpha = 1;
-    this.container.tint = 0xffffff;
+    this.lightCast = 0xffffff;
+    this.isFlashing = false;
+    this.setTint(0xffffff);
     this.container.position.set(0, 0);
     this.container.rotation = 0;
     this.container.scale.set(1, 1);
@@ -653,7 +660,7 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     this.burnParticleTimer = 0;
 
     // Apply orange tint to indicate burning
-    this.container.tint = 0xff6600;
+    this.setTint(0xff6600);
 
     // Emit initial burst of fire particles
     this.particles.emit(ParticleType.FIRE, 0, -5, {
@@ -684,7 +691,7 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
 
     // Reset tint if not already dead
     if (!this.container.destroyed && this.container.alpha > 0.5) {
-      this.container.tint = 0xffffff;
+      this.setTint(0xffffff);
     }
   }
 
@@ -741,17 +748,43 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
   }
 
   /**
+   * Set the zombie's base tint (health greying, burning orange, phase colours). The nearby-light
+   * cast is multiplied in, so lighting never fights the other tint sources.
+   */
+  protected setTint(color: number): void {
+    this.baseTint = color;
+    this.applyComposedTint();
+  }
+
+  /** Colour cast from nearby point lights (0xffffff = none). Cheap: only touches the tint on change. */
+  setLightCast(color: number): void {
+    if (color === this.lightCast) {
+      return;
+    }
+    this.lightCast = color;
+    this.applyComposedTint();
+  }
+
+  private applyComposedTint(): void {
+    // A damage flash owns the tint for its 100ms; the composed tint is restored afterwards
+    if (this.isFlashing || this.container.destroyed) {
+      return;
+    }
+    this.container.tint = multiplyTint(this.baseTint, this.lightCast);
+  }
+
+  /**
    * Apply standard grey tint based on health percentage.
    */
   protected applyHealthTint(healthPercent: number): void {
     if (healthPercent < 0.25) {
-      this.container.tint = 0x888888;
+      this.setTint(0x888888);
     } else if (healthPercent < 0.5) {
-      this.container.tint = 0xaaaaaa;
+      this.setTint(0xaaaaaa);
     } else if (healthPercent < 0.75) {
-      this.container.tint = 0xcccccc;
+      this.setTint(0xcccccc);
     } else {
-      this.container.tint = 0xffffff;
+      this.setTint(0xffffff);
     }
   }
 }

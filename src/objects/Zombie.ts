@@ -10,6 +10,8 @@ import {
   getDamageModifier,
   type TowerType,
 } from '../config/zombieResistances';
+import { lightingManager } from '../renderers/lighting/LightingManager';
+import { lightCastTint } from '../renderers/lighting/zombieLighting';
 import { ZombieRendererFactory } from '../renderers/zombies';
 import type { BaseZombieRenderer } from '../renderers/zombies/BaseZombieRenderer';
 import type { IZombieRenderer, ZombieRenderState } from '../renderers/zombies/ZombieRenderer';
@@ -63,6 +65,8 @@ export class Zombie extends GameObject {
 
   private knockback = new KnockbackState();
   private lane = new LaneOffset();
+  /** True while a light colour cast is applied, so it can be cleared once the light is gone. */
+  private hasLightCast = false;
   private burn = new BurnState();
 
   constructor(type: string, x: number, y: number, wave: number) {
@@ -102,6 +106,7 @@ export class Zombie extends GameObject {
     this.currentSlowPercent = 0;
     this.knockback.reset();
     this.lane.reset(getLaneSpread(this.type));
+    this.hasLightCast = false;
     this.pivot.set(0, 0);
     this.visible = true;
     this.alpha = 1;
@@ -279,6 +284,8 @@ export class Zombie extends GameObject {
       this.renderer.update(deltaTime, state);
       this.renderer.render(this, state);
     }
+
+    this.updateLightCast();
 
     // Update health bar (threat types by default; debug flag shows it on every type)
     const healthComponent = this.getComponent<HealthComponent>('Health');
@@ -532,6 +539,33 @@ export class Zombie extends GameObject {
   }
 
   // Get visual size for corpse creation
+  /**
+   * Colour-cast this zombie by nearby explosions, fire and arcs (multiply tint, so it shifts hue
+   * without a per-zombie overlay). Free when no lights exist: one boolean check per frame.
+   */
+  private updateLightCast(): void {
+    if (!this.renderer?.setLightCast) {
+      return;
+    }
+    if (!lightingManager.hasPointLights()) {
+      if (this.hasLightCast) {
+        this.renderer.setLightCast(0xffffff);
+        this.hasLightCast = false;
+      }
+      return;
+    }
+    const sample = lightingManager.sampleEnvironment(this.position.x, this.position.y);
+    if (sample.strength < 0.02) {
+      if (this.hasLightCast) {
+        this.renderer.setLightCast(0xffffff);
+        this.hasLightCast = false;
+      }
+      return;
+    }
+    this.renderer.setLightCast(lightCastTint(sample.strength, sample.color));
+    this.hasLightCast = true;
+  }
+
   /** Redraw the fill only when the displayed percentage actually changes. */
   private redrawHealthBar(percent: number): void {
     const rounded = Math.round(percent);

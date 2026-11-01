@@ -28,6 +28,8 @@ export interface IZombieRenderer {
   updateBurningEffect?(deltaTime: number): void;
   /** Gore burst + stump when a limb is lost while alive */
   onLimbLost?(limb: LimbId): void;
+  /** Multiply-tint cast by a nearby coloured light (0xffffff = none). */
+  setLightCast?(color: number): void;
 }
 
 export enum AnimationState {

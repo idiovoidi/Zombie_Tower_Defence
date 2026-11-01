@@ -78,11 +78,11 @@ export class NecroTankRenderer extends BaseZombieRenderer {
   protected override applyHealthTint(healthPercent: number): void {
     // Phase tints: armored purple → cracking orange → exposed necrotic
     if (healthPercent > 0.66) {
-      this.container.tint = 0xcc99ff;
+      this.setTint(0xcc99ff);
     } else if (healthPercent > 0.33) {
-      this.container.tint = 0xff9966;
+      this.setTint(0xff9966);
     } else {
-      this.container.tint = 0xaa66ff;
+      this.setTint(0xaa66ff);
     }
   }
 }

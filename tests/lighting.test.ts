@@ -319,3 +319,37 @@ describe('day/night is on by default', () => {
     expect(lm.getAmbientTint().alpha).toBeLessThan(0.08);
   });
 });
+
+describe('zombie light cast tint', () => {
+  test('multiplyTint multiplies channels and white is neutral', async () => {
+    const { multiplyTint } = await import('../src/renderers/lighting/zombieLighting');
+    expect(multiplyTint(0xffffff, 0x336699)).toBe(0x336699);
+    expect(multiplyTint(0x888888, 0xffffff)).toBe(0x888888);
+    expect(multiplyTint(0xff8040, 0x808080)).toBe(0x804020);
+    expect(multiplyTint(0x000000, 0xffffff)).toBe(0);
+  });
+
+  test('no light -> white; fire casts a warm hue without dimming the brightest channel', async () => {
+    const { lightCastTint } = await import('../src/renderers/lighting/zombieLighting');
+    expect(lightCastTint(0, 0xff8a20)).toBe(0xffffff);
+    const warm = lightCastTint(1, 0xff8a20);
+    const r = (warm >> 16) & 255;
+    const g = (warm >> 8) & 255;
+    const b = warm & 255;
+    expect(r).toBe(255); // brightest channel untouched: shifts hue, does not darken
+    expect(g).toBeLessThan(255);
+    expect(b).toBeLessThan(g); // orange: blue reduced most
+  });
+
+  test('a cool light (Tesla) casts blue; stronger light casts more; strength clamps', async () => {
+    const { lightCastTint } = await import('../src/renderers/lighting/zombieLighting');
+    const cool = lightCastTint(1, 0x66e0ff);
+    expect(cool & 255).toBe(255);
+    expect((cool >> 16) & 255).toBeLessThan(255);
+    const weak = lightCastTint(0.2, 0xff8a20) & 255;
+    const strong = lightCastTint(0.9, 0xff8a20) & 255;
+    expect(strong).toBeLessThan(weak);
+    expect(lightCastTint(5, 0xff8a20)).toBe(lightCastTint(1, 0xff8a20));
+    expect(lightCastTint(1, 0x000000)).toBe(0xffffff);
+  });
+});
