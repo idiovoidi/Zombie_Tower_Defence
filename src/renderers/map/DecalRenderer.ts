@@ -2,6 +2,7 @@ import type { Graphics } from 'pixi.js';
 import { COLORS, DECALS } from '../../config/visualConstants';
 import type { MapData } from '../../managers/MapManager';
 import { ensurePathGraph, pathGraphToSegments } from '../../path/pathGraph';
+import { createSeededRandom, hashString } from '../../utils/seededRandom';
 
 interface SwayTree {
   x: number;
@@ -171,6 +172,9 @@ export class DecalRenderer {
       if (!this.isAwayFromPath(x, y, mapData, DECALS.PATH_CLEARANCE + rx)) {
         continue;
       }
+      if (this.ponds.some(p => Math.hypot(p.x - x, p.y - y) < p.rx + rx + 40)) {
+        continue;
+      }
       const pond: Pond = {
         x,
         y,
@@ -247,6 +251,26 @@ export class DecalRenderer {
       .ellipse(pond.x, pond.y - 1, pond.rx * 0.92, pond.ry * 0.85)
       .fill({ color: COLORS.DECAL_POND_WATER, alpha: 0.7 });
 
+    // Bank stones and drifting lily pads
+    for (let i = 0; i < 6; i++) {
+      const a = pond.phase + i * 1.05;
+      this.graphics
+        .ellipse(
+          pond.x + Math.cos(a) * (pond.rx + 3),
+          pond.y + Math.sin(a) * (pond.ry + 2),
+          2.2 + (i % 3) * 0.7,
+          1.5 + (i % 2) * 0.5
+        )
+        .fill({ color: 0x4a4a46, alpha: 0.8 });
+    }
+    for (let i = 0; i < 3; i++) {
+      const drift = this.time * 0.15 + pond.phase + i * 2.1;
+      const px = pond.x + Math.cos(drift) * pond.rx * 0.45 + (i - 1) * pond.rx * 0.2;
+      const py = pond.y + Math.sin(drift * 0.8) * pond.ry * 0.4;
+      this.graphics.ellipse(px, py, 3.4, 2.2).fill({ color: 0x3a6a2a, alpha: 0.85 });
+      this.graphics.ellipse(px - 0.6, py - 0.4, 1.6, 1).fill({ color: 0x5a8a3a, alpha: 0.6 });
+    }
+
     // Shimmer ripples
     for (let i = 0; i < DECALS.POND_SHIMMER_COUNT; i++) {
       const t = this.time * DECALS.POND_SHIMMER_SPEED + pond.phase + i * 1.7;
@@ -279,44 +303,82 @@ export class DecalRenderer {
       .quadraticCurveTo(reed.x + sway * 0.5, reed.y - reed.height * 0.5, tipX, tipY)
       .stroke({ width: 1.5, color: COLORS.DECAL_REED, alpha: 0.75 });
 
-    // Leaf tip
+    // Leaf blade, and a cattail head on every other reed
     this.graphics
       .moveTo(tipX, tipY)
       .lineTo(tipX + sway * 0.4 + 2, tipY + 3)
       .stroke({ width: 1, color: COLORS.DECAL_REED, alpha: 0.6 });
+    if (Math.floor(reed.phase * 10) % 2 === 0) {
+      this.graphics.ellipse(tipX, tipY - 1.5, 1.3, 3).fill({ color: 0x4a3222, alpha: 0.9 });
+    }
   }
 
   private drawSwayTree(tree: SwayTree): void {
+    const g = this.graphics;
+    const h = tree.height;
     const sway = Math.sin(this.time * tree.swaySpeed + tree.phase) * DECALS.TREE_SWAY_AMPLITUDE;
-    const trunkWidth = tree.height * 0.14;
-    const trunkHeight = tree.height * 0.45;
-    const trunkTop = tree.y;
+    const gust = Math.sin(this.time * tree.swaySpeed * 2.3 + tree.phase * 1.7) * 0.6;
+    const trunkW = h * 0.16;
+    const trunkH = h * 0.45;
+    const baseY = tree.y + trunkH;
 
-    // Shadow
-    this.graphics
-      .ellipse(tree.x + sway * 0.3, tree.y + trunkHeight, tree.height * 0.35, tree.height * 0.12)
-      .fill({ color: 0x1a1a1a, alpha: 0.25 });
+    // Cast shadow, stretched away from the light (upper-left)
+    g.ellipse(tree.x + h * 0.2 + sway * 0.3, baseY, h * 0.42, h * 0.13).fill({
+      color: 0x0a0f08,
+      alpha: 0.3,
+    });
 
-    // Trunk (static base)
-    this.graphics
-      .rect(tree.x - trunkWidth / 2, trunkTop, trunkWidth, trunkHeight)
-      .fill(COLORS.DECAL_TREE_TRUNK);
+    // Tapered trunk with a lit edge, root flare and a fork into the canopy
+    const topX = tree.x + sway * 0.25;
+    g.poly([
+      tree.x - trunkW * 0.8,
+      baseY,
+      tree.x - trunkW * 0.38,
+      baseY - trunkH * 0.25,
+      topX - trunkW * 0.3,
+      tree.y,
+      topX + trunkW * 0.3,
+      tree.y,
+      tree.x + trunkW * 0.38,
+      baseY - trunkH * 0.25,
+      tree.x + trunkW * 0.8,
+      baseY,
+    ]).fill(COLORS.DECAL_TREE_TRUNK);
+    g.moveTo(tree.x - trunkW * 0.25, baseY - 1)
+      .lineTo(topX - trunkW * 0.15, tree.y)
+      .stroke({ width: 1, color: 0x7a6248, alpha: 0.5 });
+    g.moveTo(tree.x + trunkW * 0.3, baseY - 1)
+      .lineTo(topX + trunkW * 0.2, tree.y)
+      .stroke({ width: 1, color: 0x1a120a, alpha: 0.5 });
+    g.moveTo(topX, tree.y + trunkH * 0.15)
+      .lineTo(topX - h * 0.18 + sway * 0.6, tree.y - h * 0.12)
+      .stroke({ width: trunkW * 0.35, color: COLORS.DECAL_TREE_TRUNK });
+    g.moveTo(topX, tree.y + trunkH * 0.15)
+      .lineTo(topX + h * 0.18 + sway * 0.6, tree.y - h * 0.1)
+      .stroke({ width: trunkW * 0.35, color: COLORS.DECAL_TREE_TRUNK });
 
-    // Foliage canopy — leans with wind
-    const canopyCx = tree.x + sway;
-    const canopyCy = trunkTop - tree.height * 0.15;
-    const layers = [
-      { r: tree.height * 0.42, alpha: 0.9, color: COLORS.DECAL_TREE_FOLIAGE_DARK },
-      { r: tree.height * 0.32, alpha: 0.85, color: COLORS.DECAL_TREE_FOLIAGE },
-      { r: tree.height * 0.2, alpha: 0.8, color: COLORS.DECAL_TREE_FOLIAGE },
+    // Canopy: clustered lobes (fixed layout per tree), tips swinging more than the base.
+    // Drawn dark -> mid -> lit so the lobes read as volume, light from the upper left.
+    const cy = tree.y - h * 0.2;
+    const lobes = 6;
+    const passes = [
+      { color: COLORS.DECAL_TREE_FOLIAGE_DARK, scale: 1, dx: 0.06, dy: 0.08, alpha: 0.95 },
+      { color: COLORS.DECAL_TREE_FOLIAGE, scale: 0.78, dx: -0.02, dy: -0.02, alpha: 0.92 },
+      { color: 0x5a7a3a, scale: 0.42, dx: -0.1, dy: -0.1, alpha: 0.75 },
     ];
-
-    for (let i = 0; i < layers.length; i++) {
-      const layer = layers[i];
-      const layerSway = sway * (1 + i * 0.15);
-      this.graphics
-        .circle(canopyCx + layerSway * 0.2, canopyCy - i * tree.height * 0.12, layer.r)
-        .fill({ color: layer.color, alpha: layer.alpha });
+    for (const pass of passes) {
+      for (let i = 0; i < lobes; i++) {
+        const ang = tree.phase + (i / lobes) * Math.PI * 2;
+        const ring = i === 0 ? 0 : 1;
+        const lx = Math.cos(ang) * h * 0.24 * ring;
+        const ly = Math.sin(ang) * h * 0.16 * ring - ring * h * 0.04;
+        const wind = (sway + gust * (ly < 0 ? 1.4 : 0.6)) * (1 + (-ly / h) * 1.2);
+        const r = h * (i === 0 ? 0.3 : 0.2 + 0.03 * ((i * 7) % 3)) * pass.scale;
+        g.circle(topX + lx + wind * 0.5 + pass.dx * h, cy + ly + pass.dy * h, r).fill({
+          color: pass.color,
+          alpha: pass.alpha,
+        });
+      }
     }
   }
 
@@ -352,25 +414,6 @@ export class DecalRenderer {
     }
     return true;
   }
-}
-
-function hashString(value: string): number {
-  let hash = 0;
-  for (let i = 0; i < value.length; i++) {
-    hash = (hash * 31 + value.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash) || 1;
-}
-
-function createSeededRandom(seed: number): () => number {
-  let s = seed % 2147483647;
-  if (s <= 0) {
-    s += 2147483646;
-  }
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
 }
 
 function distanceToSegment(

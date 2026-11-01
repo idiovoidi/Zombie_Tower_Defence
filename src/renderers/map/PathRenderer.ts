@@ -3,6 +3,7 @@ import { COLORS, PATH } from '../../config/visualConstants';
 import type { MapData } from '../../managers/MapManager';
 import type { Waypoint } from '../../managers/PathfindingManager';
 import { ensurePathGraph, pathGraphToSegments } from '../../path/pathGraph';
+import { createSeededRandom, hashString } from '../../utils/seededRandom';
 
 /**
  * PathRenderer
@@ -175,19 +176,7 @@ export class PathRenderer {
   private renderTireTracks(waypoints: Waypoint[], pathWidth: number): void {
     const trackOffset = pathWidth * PATH.TRACK_OFFSET_FACTOR;
 
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      const curr = waypoints[i];
-      const next = waypoints[i + 1];
-
-      const dx = next.x - curr.x;
-      const dy = next.y - curr.y;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      if (len < 1) {
-        continue;
-      }
-      const nx = -dy / len;
-      const ny = dx / len;
-
+    for (const { curr, dx, dy, len, nx, ny } of pathSegments(waypoints)) {
       // Draw ruts as short wobbling segments for organic wear
       const steps = Math.max(2, Math.floor(len / 18));
       for (const side of [1, -1] as const) {
@@ -212,20 +201,7 @@ export class PathRenderer {
   }
 
   private renderPathTexture(waypoints: Waypoint[], pathWidth: number): void {
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      const curr = waypoints[i];
-      const next = waypoints[i + 1];
-
-      const dx = next.x - curr.x;
-      const dy = next.y - curr.y;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      if (len < 1) {
-        continue;
-      }
-      const ux = dx / len;
-      const uy = dy / len;
-      const nx = -uy;
-      const ny = ux;
+    for (const { curr, dx, dy, len, ux, uy, nx, ny } of pathSegments(waypoints)) {
       const steps = Math.floor(len / PATH.DIRT_STEP_SIZE);
 
       for (let j = 0; j < steps; j++) {
@@ -326,17 +302,7 @@ export class PathRenderer {
 
   private renderEdgeDetail(waypoints: Waypoint[], pathWidth: number): void {
     const edgeDist = pathWidth * 0.48;
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      const curr = waypoints[i];
-      const next = waypoints[i + 1];
-      const dx = next.x - curr.x;
-      const dy = next.y - curr.y;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      if (len < 1) {
-        continue;
-      }
-      const nx = -dy / len;
-      const ny = dx / len;
+    for (const { curr, dx, dy, len, nx, ny } of pathSegments(waypoints)) {
       const steps = Math.floor(len / 16);
 
       for (let j = 0; j < steps; j++) {
@@ -370,21 +336,33 @@ export class PathRenderer {
   }
 }
 
-function hashString(value: string): number {
-  let hash = 0;
-  for (let i = 0; i < value.length; i++) {
-    hash = (hash * 31 + value.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash) || 1;
+/** Geometry for one waypoint-to-waypoint segment (segments shorter than 1px are skipped). */
+interface PathSegment {
+  curr: Waypoint;
+  next: Waypoint;
+  dx: number;
+  dy: number;
+  len: number;
+  /** Unit direction. */
+  ux: number;
+  uy: number;
+  /** Unit left-hand normal. */
+  nx: number;
+  ny: number;
 }
 
-function createSeededRandom(seed: number): () => number {
-  let s = seed % 2147483647;
-  if (s <= 0) {
-    s += 2147483646;
+function* pathSegments(waypoints: Waypoint[]): Generator<PathSegment> {
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const curr = waypoints[i];
+    const next = waypoints[i + 1];
+    const dx = next.x - curr.x;
+    const dy = next.y - curr.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1) {
+      continue;
+    }
+    const ux = dx / len;
+    const uy = dy / len;
+    yield { curr, next, dx, dy, len, ux, uy, nx: -uy, ny: ux };
   }
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
 }

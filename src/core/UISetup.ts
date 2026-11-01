@@ -1,6 +1,7 @@
 import type { Application } from 'pixi.js';
 import { DebugConstants } from '../config/debugConstants';
 import { GameConfig } from '../config/gameConfig';
+import { UI_DIMENSIONS } from '../config/visualConstants';
 import { customMapStore, syncCustomMapsToManagers } from '../customMaps';
 import { CampUpgradeManager } from '../managers/CampUpgradeManager';
 import { DebugTestUIManager } from '../managers/DebugTestUIManager';
@@ -17,7 +18,11 @@ import { MoneyAnimation } from '../ui/MoneyAnimation';
 import { TimeControlUI } from '../ui/TimeControlUI';
 import { TowerInfoPanel } from '../ui/TowerInfoPanel';
 import { TowerShop } from '../ui/TowerShop';
+import { MetalUI } from '../ui/theme/MetalUI';
 import { UIManager } from '../ui/UIManager';
+import { VictoryScreen } from '../ui/VictoryScreen';
+import { WaveBanner } from '../ui/WaveBanner';
+import { announceWaveClear, announceWaveStart } from '../ui/waveAnnouncement';
 import { DebugUtils } from '../utils/DebugUtils';
 import { GameEvents } from '../utils/EventBus';
 import { VisualEffects } from '../utils/VisualEffects';
@@ -32,6 +37,8 @@ export interface UIContext {
   debugTestUIManager: DebugTestUIManager;
   timeControlUI: TimeControlUI;
   gameOverScreen: GameOverScreen;
+  victoryScreen: VictoryScreen;
+  waveBanner: WaveBanner;
   mainMenu: MainMenu;
   levelSelectMenu: LevelSelectMenu;
   mapEditorScreen: MapEditorScreen;
@@ -44,6 +51,15 @@ export function createUI(
   timeControlManager: TimeControlManager
 ): UIContext {
   const uiManager = new UIManager(app);
+
+  // Steel plate under all UI for the column beside the 1024px map (the shop covers it in-game)
+  const sidePlateX = UI_DIMENSIONS.PLAY_AREA_WIDTH;
+  const sidePlate = MetalUI.createSidePlate(
+    GameConfig.SCREEN_WIDTH - sidePlateX,
+    GameConfig.SCREEN_HEIGHT
+  );
+  sidePlate.position.set(sidePlateX, 0);
+  app.stage.addChild(sidePlate);
 
   const screenWidth = GameConfig.SCREEN_WIDTH;
   const screenHeight = GameConfig.SCREEN_HEIGHT;
@@ -67,6 +83,12 @@ export function createUI(
 
   const gameOverScreen = new GameOverScreen();
   uiManager.registerComponent('gameOverScreen', gameOverScreen);
+
+  const victoryScreen = new VictoryScreen();
+  uiManager.registerComponent('victoryScreen', victoryScreen);
+
+  const waveBanner = new WaveBanner();
+  uiManager.registerComponent('waveBanner', waveBanner);
 
   const towerManager = gameManager.getTowerManager();
   const towerShop = new TowerShop(towerManager);
@@ -150,8 +172,23 @@ export function createUI(
   });
 
   eventBus.on(GameEvents.GAME_OVER, data => {
+    waveBanner.dismiss();
     gameOverScreen.showGameOver(data.score);
     uiManager.setState(GameConfig.GAME_STATES.GAME_OVER);
+  });
+
+  eventBus.on(GameEvents.GAME_VICTORY, data => {
+    waveBanner.dismiss();
+    const levelManager = gameManager.getLevelManager();
+    victoryScreen.showVictory({
+      score: data.score,
+      wave: data.wave,
+      livesRemaining: data.livesRemaining,
+      unlockedLevelNames: data.unlockedLevelIds
+        .map(id => levelManager.getLevel(id)?.name)
+        .filter((name): name is string => name !== undefined),
+    });
+    uiManager.setState(GameConfig.GAME_STATES.VICTORY);
   });
 
   // Event handlers
@@ -162,7 +199,16 @@ export function createUI(
       mapManager: gameManager.getMapManager(),
       levelManager: gameManager.getLevelManager(),
     });
-    levelSelectMenu.updateLevels(gameManager.getAvailableLevels());
+    const levelManager = gameManager.getLevelManager();
+    // Campaign sectors always listed (locked ones dimmed); custom maps only once saved
+    levelSelectMenu.updateLevels(
+      [...levelManager.getAllCampaignLevels(), ...levelManager.getCustomLevels()],
+      {
+        isCompleted: id => levelManager.isLevelCompleted(id),
+        bestWave: id => levelManager.getBestWave(id),
+        isUnlocked: id => levelManager.isLevelUnlocked(id),
+      }
+    );
   };
 
   const pushHudAfterPlayStart = (): void => {
@@ -250,6 +296,17 @@ export function createUI(
     uiManager.setState(GameConfig.GAME_STATES.MAIN_MENU);
   });
 
+  victoryScreen.setLevelSelectCallback(() => {
+    DebugUtils.debug('Returning to level select from victory');
+    refreshLevelSelect();
+    uiManager.setState(GameConfig.GAME_STATES.LEVEL_SELECT);
+  });
+
+  victoryScreen.setMainMenuCallback(() => {
+    DebugUtils.debug('Returning to main menu from victory');
+    uiManager.setState(GameConfig.GAME_STATES.MAIN_MENU);
+  });
+
   // Next wave callback (BottomBar owns the button)
   bottomBar.setNextWaveCallback(createNextWaveCallback(bottomBar, gameManager));
 
@@ -312,6 +369,8 @@ export function createUI(
     debugTestUIManager,
     timeControlUI,
     gameOverScreen,
+    victoryScreen,
+    waveBanner,
     mainMenu,
     levelSelectMenu,
     mapEditorScreen,
@@ -324,14 +383,8 @@ export function createUI(
   return ui;
 }
 
-/**
- * Push money/lives/wave/next-wave UI from game state (also used after level start).
- */
-export function syncGameHud(gameManager: GameManager, ui: UIContext): void {
-  const money = gameManager.getMoney();
-  ui.bottomBar.updateMoney(money);
-  ui.bottomBar.updateLives(gameManager.getLives());
-  ui.bottomBar.updateWave(gameManager.getWave());
+/** Update everything that depends on the player's current money. */
+function refreshMoneyDependents(gameManager: GameManager, ui: UIContext, money: number): void {
   ui.towerShop.updateAffordability(money);
   ui.campUpgradePanel.setMoneyAvailable(money);
 
@@ -340,6 +393,17 @@ export function syncGameHud(gameManager: GameManager, ui: UIContext): void {
     const { affordable } = canAffordSelectedTower(ui.towerShop, gameManager);
     placementManager.setCanAfford(affordable);
   }
+}
+
+/**
+ * Push money/lives/wave/next-wave UI from game state (also used after level start).
+ */
+export function syncGameHud(gameManager: GameManager, ui: UIContext): void {
+  const money = gameManager.getMoney();
+  ui.bottomBar.updateMoney(money);
+  ui.bottomBar.updateLives(gameManager.getLives());
+  ui.bottomBar.updateWave(gameManager.getWave());
+  refreshMoneyDependents(gameManager, ui, money);
 
   if (gameManager.getCurrentState() === GameConfig.GAME_STATES.WAVE_COMPLETE) {
     ui.bottomBar.showNextWaveButton();
@@ -357,14 +421,7 @@ export function bindGameHudEvents(gameManager: GameManager, ui: UIContext): void
   const refreshMoney = (): void => {
     const money = gameManager.getMoney();
     ui.bottomBar.updateMoney(money);
-    ui.towerShop.updateAffordability(money);
-    ui.campUpgradePanel.setMoneyAvailable(money);
-
-    const placementManager = gameManager.getTowerPlacementManager();
-    if (placementManager.isInPlacementMode()) {
-      const { affordable } = canAffordSelectedTower(ui.towerShop, gameManager);
-      placementManager.setCanAfford(affordable);
-    }
+    refreshMoneyDependents(gameManager, ui, money);
   };
 
   const refreshLives = (): void => {
@@ -379,12 +436,24 @@ export function bindGameHudEvents(gameManager: GameManager, ui: UIContext): void
   eventBus.on(GameEvents.MONEY_SPENT, refreshMoney);
   eventBus.on(GameEvents.LIFE_LOST, refreshLives);
   eventBus.on(GameEvents.LIVES_CHANGED, refreshLives);
-  eventBus.on(GameEvents.WAVE_START, () => {
+  eventBus.on(GameEvents.WAVE_START, ({ wave }) => {
     refreshWave();
     ui.bottomBar.hideNextWaveButton();
+
+    const waveManager = gameManager.getWaveManager();
+    ui.waveBanner.announce(
+      announceWaveStart(
+        wave,
+        waveManager.getZombiesForWave(wave).map(group => ({
+          type: group.type,
+          count: waveManager.calculateZombieCount(group.count, wave, group.type),
+        }))
+      )
+    );
   });
-  eventBus.on(GameEvents.WAVE_COMPLETE, () => {
+  eventBus.on(GameEvents.WAVE_COMPLETE, ({ wave, livesLost }) => {
     ui.bottomBar.showNextWaveButton();
+    ui.waveBanner.announce(announceWaveClear(wave, livesLost));
   });
 
   syncGameHud(gameManager, ui);

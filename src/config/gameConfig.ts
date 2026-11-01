@@ -21,7 +21,7 @@ export const GameConfig = {
   },
 
   // Resource settings
-  STARTING_MONEY: 500,
+  STARTING_MONEY: 1000,
   STARTING_LIVES: 100, // 100 survivors in the camp
 
   // Difficulty modes

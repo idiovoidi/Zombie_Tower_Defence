@@ -28,16 +28,7 @@ export class CorpseManager {
     killerType?: string,
     _impactAngle?: number
   ): void {
-    // Remove oldest corpse BEFORE adding new one if at limit
-    // This ensures we never exceed maxCorpses
-    if (this.corpses.length >= this.maxCorpses) {
-      const oldCorpse = this.corpses.shift();
-      if (oldCorpse) {
-        this.container.removeChild(oldCorpse.container);
-        // Destroy with children: true to ensure all Graphics objects are destroyed
-        oldCorpse.container.destroy({ children: true });
-      }
-    }
+    this.makeRoom();
 
     // Create a container for the corpse
     const corpseContainer = new Container();
@@ -57,6 +48,36 @@ export class CorpseManager {
     };
 
     this.corpses.push(corpse);
+    this.container.addChild(corpseContainer);
+  }
+
+  /** Remove the oldest corpse if at the limit, so we never exceed maxCorpses. */
+  private makeRoom(): void {
+    if (this.corpses.length >= this.maxCorpses) {
+      const oldCorpse = this.corpses.shift();
+      if (oldCorpse) {
+        this.container.removeChild(oldCorpse.container);
+        // Destroy with children: true to ensure all Graphics objects are destroyed
+        oldCorpse.container.destroy({ children: true });
+      }
+    }
+  }
+
+  /**
+   * Add a corpse that is already drawn (the settled ragdoll: blood pool and body). It keeps the
+   * exact pose the zombie died in. Ownership of the graphics passes to the manager.
+   */
+  public createCorpseFromBody(x: number, y: number, body: Graphics): void {
+    this.makeRoom();
+    const corpseContainer = new Container();
+    corpseContainer.position.set(x, y);
+    corpseContainer.addChild(body);
+    this.corpses.push({
+      id: this.nextCorpseId++,
+      container: corpseContainer,
+      fadeTimer: 0,
+      maxFadeTime: 10,
+    });
     this.container.addChild(corpseContainer);
   }
 

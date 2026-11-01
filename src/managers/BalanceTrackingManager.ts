@@ -379,7 +379,7 @@ export class BalanceTrackingManager {
    */
   private getSurvivalRate(): number {
     const currentLives = this.gameManager.getLives();
-    const startingLives = GameConfig.STARTING_LIVES;
+    const startingLives = this.gameManager.getStartingLives?.() || GameConfig.STARTING_LIVES;
     return (currentLives / startingLives) * 100;
   }
 

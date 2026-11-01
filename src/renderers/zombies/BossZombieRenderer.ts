@@ -1,10 +1,3 @@
-import {
-  createHumanoidArm,
-  createHumanoidHead,
-  createHumanoidLegs,
-  createHumanoidShadow,
-  createHumanoidTorso,
-} from './HumanoidPartBuilder';
 import { BaseZombieRenderer } from './BaseZombieRenderer';
 import { ParticleType } from './ZombieParticleSystem';
 
@@ -44,33 +37,10 @@ export class BossZombieRenderer extends BaseZombieRenderer {
       strokeAlpha: 0.7,
     };
 
-    this.shadowPart = createHumanoidShadow(24, 16);
-    const legs = createHumanoidLegs(palette);
-    this.leftLegPart = legs.leftLeg;
-    this.rightLegPart = legs.rightLeg;
-    this.torsoPart = createHumanoidTorso(palette);
-    this.headPart = createHumanoidHead(palette);
-    this.leftArmPart = createHumanoidArm(palette, 'left');
-    this.rightArmPart = createHumanoidArm(palette, 'right');
+    this.buildHumanoidParts(palette, { y: 24, size: 16 });
 
     this.finishInitParts();
   }
-
-  protected getAnimationOffsets() {
-    return {
-      leftLegX: -5,
-      leftLegY: 16,
-      rightLegX: 3,
-      rightLegY: 16,
-      torsoY: 10,
-      leftArmX: -9,
-      leftArmY: -6,
-      rightArmX: 9,
-      rightArmY: -6,
-      headY: -20,
-    };
-  }
-
   protected updateWounds(
     healthPercent: number,
     _anim: {

@@ -8,14 +8,17 @@ import { type CustomMapDocument, registerCustomMap } from '../customMaps';
 import type { Tower } from '../objects/Tower';
 import type { ITower } from '../objects/Tower.interface';
 import type { Zombie } from '../objects/Zombie';
+import { AmbientTintOverlay } from '../renderers/effects/AmbientTintOverlay';
 import { EffectManager } from '../renderers/effects/EffectManager';
 import type { SludgePoolEffect } from '../renderers/effects/SludgePoolEffect';
+import { VignetteOverlay } from '../renderers/effects/VignetteOverlay';
+import { lightingManager } from '../renderers/lighting/LightingManager';
 import { VisualMapRenderer } from '../renderers/VisualMapRenderer';
 import type { IStatTracker } from '../types/gameProviders';
 import { Camera } from '../utils/Camera';
 import { EffectCleanupManager } from '../utils/EffectCleanupManager';
 import { EventBus, GameEvents } from '../utils/EventBus';
-import { type GameLogEntry, LogExporter } from '../utils/LogExporter';
+import { LogExporter } from '../utils/LogExporter';
 import { OptimizationValidator } from '../utils/OptimizationValidator';
 import { PerformanceMonitor } from '../utils/PerformanceMonitor';
 import { ResourceCleanupManager } from '../utils/ResourceCleanupManager';
@@ -23,9 +26,11 @@ import { TowerRangeVisualizer } from '../utils/TowerRangeVisualizer';
 import { VisualEffects } from '../utils/VisualEffects';
 import { AnalyticsState } from './AnalyticsState';
 import { EconomyState } from './EconomyState';
+import { trackFrameTelemetry } from './FrameTelemetry';
 import type { InputManager } from './InputManager';
 import { LevelManager } from './LevelManager';
 import { LevelState } from './LevelState';
+import { exportManualGameLog } from './ManualGameLogExporter';
 import { MapManager } from './MapManager';
 import { ProjectileManager } from './ProjectileManager';
 import { SludgePoolManager } from './SludgePoolManager';
@@ -79,6 +84,8 @@ export class GameManager {
   private gameContainer: Container;
   private camera: Camera;
   private waveStartLives = 0;
+  /** Lives at the start of the current run (levels differ; used for logs and survival rate). */
+  private startingLives = 0;
 
   constructor(app: Application, deps: GameManagerDeps = {}) {
     this.app = app;
@@ -116,6 +123,16 @@ export class GameManager {
     this.worldContainer = new Container();
     this.worldContainer.sortableChildren = true;
     this.viewportContainer.addChild(this.worldContainer);
+
+    // Time-of-day colour wash (hidden unless a day/night cycle is running)
+    this.viewportContainer.addChild(
+      new AmbientTintOverlay(UI_DIMENSIONS.PLAY_AREA_WIDTH, UI_DIMENSIONS.HEIGHT, lightingManager)
+    );
+
+    // Screen-space edge darkening above the (panning) world, clipped by the play-area mask
+    this.viewportContainer.addChild(
+      new VignetteOverlay(UI_DIMENSIONS.PLAY_AREA_WIDTH, UI_DIMENSIONS.HEIGHT)
+    );
 
     this.gameContainer = new Container();
     this.gameContainer.sortableChildren = true;
@@ -241,6 +258,56 @@ export class GameManager {
     PerformanceMonitor.recordWaveMemory(this.getWave());
   }
 
+  /** Shared start-of-run reset: clears state, restarts analytics and the wave counter. */
+  private resetRunState(): void {
+    this.waveManager.setBaseDifficulty(1);
+    // Every run starts in the morning, whatever time the last one ended
+    lightingManager.restartDay();
+    this.clearGameState();
+    EffectCleanupManager.clearAll();
+    LogExporter.newSession();
+
+    this.analyticsState.getBalanceTrackingManager().reset();
+    this.analyticsState.getBalanceTrackingManager().enable();
+
+    this.score = 0;
+    this.waveManager.reset(this.getStartingWave());
+  }
+
+  /** Shared end-of-setup: enter PLAYING, start tracking, seed towers, kick off wave 1. */
+  private launchRun(): void {
+    this.currentState = GameConfig.GAME_STATES.PLAYING;
+
+    const aiEnabled = this.analyticsState.getAIPlayerManager().isEnabled();
+    this.analyticsState.getStatTracker().startTracking(aiEnabled);
+
+    this.spawnStarterTower();
+
+    if (DevConfig.TESTING?.SPAWN_TEST_TOWERS) {
+      this.spawnTestTowers();
+    }
+
+    this.startingLives = this.lives;
+    this.waveStartLives = this.lives;
+    // Own startWave; WAVE_START is notification-only for analytics
+    this.zombieManager.startWave();
+    this.eventBus.emit(GameEvents.WAVE_START, { wave: this.getWave() });
+  }
+
+  /**
+   * Draw a level's map behind the menus without starting a run, so the main menu and level
+   * select sit over the battlefield instead of a black screen.
+   */
+  public showMenuBackdrop(levelId = 'level1'): void {
+    const level = this.levelManager.getLevel(levelId);
+    if (!level || !this.mapManager.loadMap(level.map)) {
+      return;
+    }
+    this.visualMapRenderer?.renderMap(level.map);
+    this.syncCameraToCurrentMap();
+    lightingManager.restartDay(); // menus show the battlefield in daylight, not last run's night
+  }
+
   public startGameWithLevel(levelId: string): void {
     this.prepareWaveOverridesForLevel(levelId);
 
@@ -253,15 +320,8 @@ export class GameManager {
       return;
     }
 
-    this.clearGameState();
-    EffectCleanupManager.clearAll();
-    LogExporter.newSession();
-
-    this.analyticsState.getBalanceTrackingManager().reset();
-    this.analyticsState.getBalanceTrackingManager().enable();
-
-    this.score = 0;
-    this.waveManager.reset(this.getStartingWave());
+    this.resetRunState();
+    this.waveManager.setBaseDifficulty(WaveManager.DIFFICULTY_SCALE[level.difficulty] ?? 1);
 
     if (!DebugConstants.ENABLED) {
       this.economyState.reset(level.startingMoney);
@@ -270,21 +330,7 @@ export class GameManager {
     this.visualMapRenderer?.renderMap(level.map);
     this.syncCameraToCurrentMap();
 
-    this.currentState = GameConfig.GAME_STATES.PLAYING;
-
-    const aiEnabled = this.analyticsState.getAIPlayerManager().isEnabled();
-    this.analyticsState.getStatTracker().startTracking(aiEnabled);
-
-    this.spawnStarterTower();
-
-    if (DevConfig.TESTING?.SPAWN_TEST_TOWERS) {
-      this.spawnTestTowers();
-    }
-
-    this.waveStartLives = this.lives;
-    // Own startWave; WAVE_START is notification-only for analytics
-    this.zombieManager.startWave();
-    this.eventBus.emit(GameEvents.WAVE_START, { wave: this.getWave() });
+    this.launchRun();
   }
 
   /**
@@ -304,34 +350,14 @@ export class GameManager {
     }
 
     this.prepareWaveOverridesForLevel('');
-    this.clearGameState();
-    EffectCleanupManager.clearAll();
-    LogExporter.newSession();
-
-    this.analyticsState.getBalanceTrackingManager().reset();
-    this.analyticsState.getBalanceTrackingManager().enable();
-
-    this.score = 0;
-    this.waveManager.reset(this.getStartingWave());
+    // No level owns this map: don't let the previous level's id/totalWaves leak into this run
+    this.levelManager.clearCurrentLevel();
+    this.resetRunState();
 
     this.visualMapRenderer?.renderMap(mapName);
     this.syncCameraToCurrentMap();
 
-    this.currentState = GameConfig.GAME_STATES.PLAYING;
-
-    const aiEnabled = this.analyticsState.getAIPlayerManager().isEnabled();
-    this.analyticsState.getStatTracker().startTracking(aiEnabled);
-
-    this.spawnStarterTower();
-
-    if (DevConfig.TESTING?.SPAWN_TEST_TOWERS) {
-      this.spawnTestTowers();
-    }
-
-    this.waveStartLives = this.lives;
-    // Own startWave; WAVE_START is notification-only for analytics
-    this.zombieManager.startWave();
-    this.eventBus.emit(GameEvents.WAVE_START, { wave: this.getWave() });
+    this.launchRun();
     return true;
   }
 
@@ -431,6 +457,11 @@ export class GameManager {
     const finalScore = this.getWave() * 1000 + this.getMoney();
     this.score = finalScore;
 
+    const level = this.levelManager.getCurrentLevel();
+    if (level) {
+      this.levelManager.recordBestWave(level.id, this.getWave());
+    }
+
     // Emit game over event
     this.eventBus.emit(GameEvents.GAME_OVER, { score: finalScore });
 
@@ -447,67 +478,47 @@ export class GameManager {
     }, 100);
   }
 
-  private async exportManualGameLog(): Promise<void> {
-    const { PerformanceMonitor } = await import('../utils/PerformanceMonitor');
+  private exportManualGameLog(): void {
+    const balanceData = this.analyticsState.isBalanceTrackingEnabled()
+      ? (this.analyticsState.getBalanceTrackingManager().generateReportData() as Record<
+          string,
+          unknown
+        >)
+      : undefined;
 
-    const logEntry = {
-      timestamp: new Date().toISOString(),
-      sessionId: LogExporter.getSessionId(),
-      isAIRun: false,
-      duration: 0,
-      startTime: new Date().toISOString(),
-      endTime: new Date().toISOString(),
-      gameData: {
-        highestWave: this.getWave(),
-        finalMoney: this.getMoney(),
-        finalLives: this.lives,
-        startLives: DebugConstants.ENABLED
-          ? DebugConstants.STARTING_LIVES
-          : GameConfig.STARTING_LIVES,
-        survivalRate: Number.parseFloat(
-          (
-            (this.lives /
-              (DebugConstants.ENABLED
-                ? DebugConstants.STARTING_LIVES
-                : GameConfig.STARTING_LIVES)) *
-            100
-          ).toFixed(1)
-        ),
-        livesLost:
-          (DebugConstants.ENABLED ? DebugConstants.STARTING_LIVES : GameConfig.STARTING_LIVES) -
-          this.lives,
-      },
-      performanceStats: {
-        waveMemorySnapshots: PerformanceMonitor.getWaveMemorySnapshots(),
-        memoryGrowthRate: PerformanceMonitor.getMemoryGrowthRate(),
-        averageFrameTime: PerformanceMonitor.getMetrics().frameTime || 0,
-        peakFrameTime: PerformanceMonitor.getMetrics().frameTime || 0,
-        averageFPS:
-          PerformanceMonitor.getMetrics().frameTime > 0
-            ? Math.round(1000 / PerformanceMonitor.getMetrics().frameTime)
-            : 60,
-        lowestFPS:
-          PerformanceMonitor.getMetrics().frameTime > 0
-            ? Math.round(1000 / PerformanceMonitor.getMetrics().frameTime)
-            : 60,
-      },
-    } as GameLogEntry;
-
-    let balanceData: Record<string, unknown> | undefined;
-    if (this.analyticsState.isBalanceTrackingEnabled()) {
-      balanceData = this.analyticsState.getBalanceTrackingManager().generateReportData() as Record<
-        string,
-        unknown
-      >;
-    }
-
-    LogExporter.exportLog(logEntry, balanceData);
+    exportManualGameLog({
+      highestWave: this.getWave(),
+      finalMoney: this.getMoney(),
+      finalLives: this.lives,
+      startLives: this.startingLives > 0 ? this.startingLives : this.lives,
+      balanceData,
+    });
   }
 
   public victory(): void {
+    if (this.currentState === GameConfig.GAME_STATES.VICTORY) {
+      return;
+    }
     this.currentState = GameConfig.GAME_STATES.VICTORY;
 
-    this.eventBus.emit(GameEvents.GAME_VICTORY);
+    const level = this.levelManager.getCurrentLevel();
+    const wave = this.getWave();
+    const finalScore = wave * 1000 + this.getMoney() + this.lives * 10;
+    this.score = finalScore;
+
+    let unlockedLevelIds: string[] = [];
+    if (level) {
+      unlockedLevelIds = this.levelManager.markCompleted(level.id);
+      this.levelManager.recordBestWave(level.id, wave);
+    }
+
+    this.eventBus.emit(GameEvents.GAME_VICTORY, {
+      levelId: level?.id ?? '',
+      wave,
+      score: finalScore,
+      livesRemaining: this.lives,
+      unlockedLevelIds,
+    });
 
     if (this.analyticsState.isBalanceTrackingEnabled()) {
       this.analyticsState.getBalanceTrackingManager().performEndGameAnalysis();
@@ -564,6 +575,11 @@ export class GameManager {
 
   public getMoney(): number {
     return this.economyState.getMoney();
+  }
+
+  /** Lives the current run began with (0 before any run). */
+  public getStartingLives(): number {
+    return this.startingLives;
   }
 
   public getLives(): number {
@@ -782,39 +798,13 @@ export class GameManager {
       }
     }
 
-    // Track entity counts
     if (isPlaying) {
-      PerformanceMonitor.trackEntityCount('zombies', this.zombieManager.getZombies().length);
-      PerformanceMonitor.trackEntityCount(
-        'towers',
-        this.towerPlacementManager.getPlacedTowers().length
-      );
-      PerformanceMonitor.trackEntityCount(
-        'projectiles',
-        this.projectileManager.getProjectiles().length
-      );
-
-      const effectCounts = this.effectManager.getEffectCounts();
-      PerformanceMonitor.trackEntityCount(
-        'effects',
-        effectCounts.casings +
-          effectCounts.flashes +
-          effectCounts.trails +
-          effectCounts.impacts +
-          effectCounts.glints
-      );
-
-      const particleStats = this.zombieManager.getBloodParticleSystem().getStats();
-      PerformanceMonitor.trackEntityCount('particles', particleStats.activeParticles);
-
-      const corpseManager = this.zombieManager.getCorpseManager();
-      PerformanceMonitor.trackEntityCount('corpses', corpseManager.getCorpseCount());
-
-      const resourceState = ResourceCleanupManager.getState();
-      PerformanceMonitor.trackEntityCount('persistentEffects', resourceState.persistentEffects);
-
-      PerformanceMonitor.checkEntityThresholds();
-      PerformanceMonitor.trackMemoryUsage();
+      trackFrameTelemetry({
+        zombieManager: this.zombieManager,
+        towerPlacementManager: this.towerPlacementManager,
+        projectileManager: this.projectileManager,
+        effectManager: this.effectManager,
+      });
     }
 
     PerformanceMonitor.endFrame();
@@ -844,9 +834,26 @@ export class GameManager {
       zombiesSpawned: totalZombiesSpawned,
       livesLost: livesLostThisWave,
     });
+
+    // Clearing the level's final wave wins it (levels without totalWaves are endless)
+    const level = this.levelManager.getCurrentLevel();
+    if (level) {
+      this.levelManager.recordBestWave(level.id, wave);
+      if (level.totalWaves !== undefined && wave >= level.totalWaves) {
+        this.victory();
+      }
+    }
   }
 
   public startNextWave(): void {
+    // A finished run (won or lost) must not start another wave via debug hotkeys / dev API
+    if (
+      this.currentState === GameConfig.GAME_STATES.VICTORY ||
+      this.currentState === GameConfig.GAME_STATES.GAME_OVER
+    ) {
+      return;
+    }
+
     this.waveManager.nextWave();
     ResourceCleanupManager.cleanupWaveResources({
       projectileManager: this.projectileManager,

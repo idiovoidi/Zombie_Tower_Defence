@@ -1,8 +1,8 @@
-import { Graphics } from 'pixi.js';
+import type { Graphics } from 'pixi.js';
 import { BaseZombieRenderer } from './BaseZombieRenderer';
 import { GlowEffect } from './components/ZombieEffects';
 import { playParticleDeathAnimation } from './CustomDeathAnimation';
-import { createHumanoidShadow } from './HumanoidPartBuilder';
+import type { HumanoidRigParts } from './rig/HumanoidRig';
 import { ParticleType } from './ZombieParticleSystem';
 import type { ZombieRenderState } from './ZombieRenderer';
 
@@ -35,115 +35,124 @@ export class MechanicalZombieRenderer extends BaseZombieRenderer {
   private readonly EYE_GLOW = 0x00ffff;
 
   protected initParts(): void {
-    // Keep box silhouette; use shared shadow and slightly richer segmented limbs
-    this.shadowPart = createHumanoidShadow(16, 9);
-
-    this.leftLegPart = new Graphics();
-    this.leftLegPart
-      .moveTo(-1.9, 0)
-      .lineTo(1.9, 0)
-      .lineTo(1.4, 3.2)
-      .lineTo(-1.4, 3.2)
-      .fill(this.PRIMARY_COLOR);
-    this.leftLegPart
-      .moveTo(-1.4, 3)
-      .lineTo(1.4, 3)
-      .lineTo(1.1, 6)
-      .lineTo(-1.1, 6)
-      .fill(this.PRIMARY_COLOR);
-    this.leftLegPart.stroke({ color: 0x000000, width: 0.5, alpha: 0.6 });
-    this.leftLegPart.circle(0, 3, 1.2).fill(this.DARK_METAL);
-    this.leftLegPart.circle(0, 3, 0.6).fill(this.LIGHT_METAL);
-    this.leftLegPart.ellipse(0, 6.3, 1.6, 0.7).fill(this.DARK_METAL);
-
-    this.rightLegPart = new Graphics();
-    this.rightLegPart
-      .moveTo(-1.9, 0)
-      .lineTo(1.9, 0)
-      .lineTo(1.4, 3.2)
-      .lineTo(-1.4, 3.2)
-      .fill(this.PRIMARY_COLOR);
-    this.rightLegPart
-      .moveTo(-1.4, 3)
-      .lineTo(1.4, 3)
-      .lineTo(1.1, 6)
-      .lineTo(-1.1, 6)
-      .fill(this.PRIMARY_COLOR);
-    this.rightLegPart.stroke({ color: 0x000000, width: 0.5, alpha: 0.6 });
-    this.rightLegPart.circle(0, 3, 1.2).fill(this.DARK_METAL);
-    this.rightLegPart.circle(0, 3, 0.6).fill(this.LIGHT_METAL);
-    this.rightLegPart.ellipse(0, 6.3, 1.6, 0.7).fill(this.DARK_METAL);
-
-    this.torsoPart = new Graphics();
-    this.torsoPart
-      .rect(-6, -6.5, 12, 13)
-      .fill(this.PRIMARY_COLOR)
-      .stroke({ color: 0x000000, width: 1, alpha: 0.6 });
-
-    this.torsoPart.rect(-5, -4.5, 10, 8).fill({ color: this.LIGHT_METAL, alpha: 0.5 });
-    this.torsoPart.rect(-5, -4.5, 10, 8).stroke({ color: this.DARK_METAL, width: 0.5 });
-    this.torsoPart.rect(-4, -1.5, 8, 0.5).fill(this.DARK_METAL);
-    this.torsoPart.rect(-0.5, -3.5, 1, 6).fill(this.DARK_METAL);
-
-    this.drawBolt(this.torsoPart, -5, -3.5);
-    this.drawBolt(this.torsoPart, 5, -3.5);
-    this.drawBolt(this.torsoPart, -5, 2.5);
-    this.drawBolt(this.torsoPart, 5, 2.5);
-
-    this.torsoPart.circle(0, -0.5, 2).fill({ color: this.EYE_GLOW, alpha: 0.4 });
-    this.torsoPart.circle(0, -0.5, 1.2).fill({ color: this.EYE_GLOW, alpha: 0.7 });
-
-    this.headPart = new Graphics();
-    this.headPart.rect(-5, -4, 10, 9).fill(this.PRIMARY_COLOR);
-    this.headPart.rect(-5, -4, 10, 9).stroke({ color: 0x000000, width: 1, alpha: 0.6 });
-    this.headPart.rect(-4, -3, 8, 7).fill({ color: this.LIGHT_METAL, alpha: 0.4 });
-    this.headPart.rect(-0.5, -6, 1, 2).fill(this.DARK_METAL);
-    this.headPart.circle(0, -6, 1).fill({ color: this.EYE_GLOW, alpha: 0.8 });
-    this.headPart.rect(-4, -1, 8, 2).fill({ color: 0x000000, alpha: 0.9 });
-
-    GlowEffect.apply(this.headPart, -2.5, 0, 1.8, this.EYE_GLOW);
-    GlowEffect.apply(this.headPart, 2.5, 0, 1.8, this.EYE_GLOW);
-    this.headPart.rect(-3, -0.5, 1.5, 1).fill(this.EYE_GLOW);
-    this.headPart.rect(1.5, -0.5, 1.5, 1).fill(this.EYE_GLOW);
-    this.headPart.rect(-2, 2, 4, 1.5).fill({ color: this.DARK_METAL, alpha: 0.8 });
-    for (let i = 0; i < 4; i++) {
-      this.headPart.rect(-1.5 + i, 2.2, 0.5, 1).fill({ color: 0x000000, alpha: 0.6 });
-    }
-
-    this.leftArmPart = new Graphics();
-    this.leftArmPart.moveTo(0, 0).lineTo(0, 8).stroke({ color: 0x000000, width: 2.8, alpha: 0.3 });
-    this.leftArmPart.moveTo(0, 0).lineTo(0, 8).stroke({ color: this.PRIMARY_COLOR, width: 2.5 });
-    this.leftArmPart.circle(0, 4, 1.5).fill(this.DARK_METAL);
-    this.leftArmPart.circle(0, 4, 0.8).fill(this.LIGHT_METAL);
-    this.leftArmPart.circle(0, 8, 2).fill(this.PRIMARY_COLOR);
-    this.leftArmPart.circle(0, 8, 1).fill(this.DARK_METAL);
-
-    this.rightArmPart = new Graphics();
-    this.rightArmPart.moveTo(0, 0).lineTo(0, 8).stroke({ color: 0x000000, width: 2.8, alpha: 0.5 });
-    this.rightArmPart.moveTo(0, 0).lineTo(0, 8).stroke({ color: this.PRIMARY_COLOR, width: 2.5 });
-    this.rightArmPart.circle(0, 4, 1.5).fill(this.DARK_METAL);
-    this.rightArmPart.circle(0, 4, 0.8).fill(this.LIGHT_METAL);
-    this.rightArmPart.circle(0, 8, 2).fill(this.PRIMARY_COLOR);
-    this.rightArmPart.circle(0, 8, 1).fill(this.DARK_METAL);
-
+    // Same articulated skeleton and animation as the organic zombies; every part is then redrawn
+    // as machinery (box chassis, rectangular segments, servo discs at each joint)
+    this.buildHumanoidParts(
+      {
+        primary: this.PRIMARY_COLOR,
+        dark: this.DARK_METAL,
+        eyeGlow: this.EYE_GLOW,
+        decay: 0,
+        strokeAlpha: 0.6,
+      },
+      { y: 16, size: 9 }
+    );
+    this.restyleAsMachine(this.rig);
     this.finishInitParts();
   }
 
-  protected getAnimationOffsets() {
-    return {
-      leftLegX: -3.5,
-      leftLegY: 10,
-      rightLegX: 1.5,
-      rightLegY: 10,
-      torsoY: 6.5,
-      leftArmX: -6,
-      leftArmY: -3.5,
-      rightArmX: 6,
-      rightArmY: -3.5,
-      headY: -13.5,
-    };
-  }
+  /** Redraw the rig's parts in robot style. Joints are discs so they never open a gap. */
+  private restyleAsMachine(rig: HumanoidRigParts): void {
+    const l = rig.layout;
+    const s = l.scale;
 
+    // --- Torso: box chassis with a glowing core (torso space: origin at the hips)
+    const torso = rig.torso;
+    torso.clear();
+    const cw = l.torsoW * 1.2;
+    const cy = -l.torsoH / 2;
+    // Piston neck
+    torso
+      .rect(-1.3 * s, l.neckTopY + 0.6 * s, 2.6 * s, l.neckBaseY - l.neckTopY)
+      .fill(this.DARK_METAL);
+    torso
+      .rect(-cw / 2, -l.torsoH - 0.5 * s, cw, l.torsoH + 1.8 * s)
+      .fill(this.PRIMARY_COLOR)
+      .stroke({ color: 0x000000, width: 1, alpha: 0.6 });
+    torso.rect(-cw / 2 + 1, cy - 4, cw - 2, 8).fill({ color: this.LIGHT_METAL, alpha: 0.5 });
+    torso.rect(-cw / 2 + 1, cy - 4, cw - 2, 8).stroke({ color: this.DARK_METAL, width: 0.5 });
+    torso.rect(-4, cy - 1, 8, 0.5).fill(this.DARK_METAL);
+    torso.rect(-0.5, cy - 3, 1, 6).fill(this.DARK_METAL);
+    for (const [bx, by] of [
+      [-cw / 2 + 1, cy - 3.5],
+      [cw / 2 - 1, cy - 3.5],
+      [-cw / 2 + 1, cy + 3],
+      [cw / 2 - 1, cy + 3],
+    ]) {
+      this.drawBolt(torso, bx, by);
+    }
+    torso.circle(0, cy, 2).fill({ color: this.EYE_GLOW, alpha: 0.4 });
+    torso.circle(0, cy, 1.2).fill({ color: this.EYE_GLOW, alpha: 0.7 });
+    // Shoulder servos
+    for (const side of [-1, 1]) {
+      torso.circle(side * l.shoulderX, l.shoulderY, 2.1 * s).fill(this.DARK_METAL);
+      torso.circle(side * l.shoulderX, l.shoulderY, 1.1 * s).fill(this.LIGHT_METAL);
+    }
+
+    // --- Head: box with a visor (drawn around its own centre, as before)
+    const head = rig.head;
+    head.clear();
+    head.rect(-5, -4, 10, 9).fill(this.PRIMARY_COLOR);
+    head.rect(-5, -4, 10, 9).stroke({ color: 0x000000, width: 1, alpha: 0.6 });
+    head.rect(-4, -3, 8, 7).fill({ color: this.LIGHT_METAL, alpha: 0.4 });
+    head.rect(-0.5, -6, 1, 2).fill(this.DARK_METAL);
+    head.circle(0, -6, 1).fill({ color: this.EYE_GLOW, alpha: 0.8 });
+    head.rect(-4, -1, 8, 2).fill({ color: 0x000000, alpha: 0.9 });
+    GlowEffect.apply(head, -2.5, 0, 1.8, this.EYE_GLOW);
+    GlowEffect.apply(head, 2.5, 0, 1.8, this.EYE_GLOW);
+    head.rect(-3, -0.5, 1.5, 1).fill(this.EYE_GLOW);
+    head.rect(1.5, -0.5, 1.5, 1).fill(this.EYE_GLOW);
+    head.rect(-2, 2, 4, 1.5).fill({ color: this.DARK_METAL, alpha: 0.8 });
+    for (let i = 0; i < 4; i++) {
+      head.rect(-1.5 + i, 2.2, 0.5, 1).fill({ color: 0x000000, alpha: 0.6 });
+    }
+
+    // --- Legs: thigh and shin plates, knee servo, foot plate
+    for (const leg of [rig.leftLeg, rig.rightLeg]) {
+      const tw = l.thighW * 1.1;
+      const sw = l.shinW * 1.05;
+      leg.upper.clear();
+      leg.upper.rect(-tw / 2, 0, tw, l.thighLen + 0.4).fill(this.PRIMARY_COLOR);
+      leg.upper
+        .rect(-tw / 2, 0, tw, l.thighLen + 0.4)
+        .stroke({ color: 0x000000, width: 0.5, alpha: 0.6 });
+      leg.upper.circle(0, 0, tw * 0.55).fill(this.DARK_METAL);
+      leg.upper.circle(0, 0, tw * 0.28).fill(this.LIGHT_METAL);
+
+      leg.joint.removeChildren();
+      leg.lower.clear();
+      leg.lower.rect(-sw / 2, 0, sw, l.shinLen).fill(this.PRIMARY_COLOR);
+      leg.lower.rect(-sw / 2, 0, sw, l.shinLen).stroke({ color: 0x000000, width: 0.5, alpha: 0.6 });
+      leg.lower.circle(0, 0, sw * 0.62).fill(this.DARK_METAL);
+      leg.lower.circle(0, 0, sw * 0.3).fill(this.LIGHT_METAL);
+      leg.lower.rect(-sw * 0.85, l.shinLen - 0.3, sw * 1.7, 1.5 * s).fill(this.DARK_METAL);
+      leg.joint.addChild(leg.lower);
+    }
+
+    // --- Arms: segments with servo elbows and a clamp-style hand
+    for (const arm of [rig.leftArm, rig.rightArm]) {
+      const uw = l.upperArmW * 1.15;
+      const fw = l.foreArmW * 1.1;
+      arm.upper.clear();
+      arm.upper.rect(-uw / 2, 0, uw, l.upperArmLen + 0.4).fill(this.PRIMARY_COLOR);
+      arm.upper
+        .rect(-uw / 2, 0, uw, l.upperArmLen + 0.4)
+        .stroke({ color: 0x000000, width: 0.5, alpha: 0.6 });
+      arm.upper.circle(0, 0, uw * 0.62).fill(this.DARK_METAL);
+
+      arm.joint.removeChildren();
+      arm.lower.clear();
+      arm.lower.rect(-fw / 2, 0, fw, l.foreArmLen).fill(this.PRIMARY_COLOR);
+      arm.lower
+        .rect(-fw / 2, 0, fw, l.foreArmLen)
+        .stroke({ color: 0x000000, width: 0.5, alpha: 0.6 });
+      arm.lower.circle(0, 0, fw * 0.62).fill(this.DARK_METAL);
+      arm.lower.circle(0, 0, fw * 0.3).fill(this.LIGHT_METAL);
+      arm.lower.circle(0, l.foreArmLen, l.handR * 1.25).fill(this.PRIMARY_COLOR);
+      arm.lower.circle(0, l.foreArmLen, l.handR * 0.6).fill(this.DARK_METAL);
+      arm.joint.addChild(arm.lower);
+    }
+  }
   protected updateWounds(
     healthPercent: number,
     _anim: {
@@ -166,6 +175,11 @@ export class MechanicalZombieRenderer extends BaseZombieRenderer {
   }
 
   // Mechanical has a flicker phase — fully override
+  // Dissolves/flickers instead of collapsing, so the corpse system draws its own wreck
+  override hasRagdollCorpse(): boolean {
+    return false;
+  }
+
   override async playDeathAnimation(_killerType?: string): Promise<void> {
     return playParticleDeathAnimation({
       container: this.container,

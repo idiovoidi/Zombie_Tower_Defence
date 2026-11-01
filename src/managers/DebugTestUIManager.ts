@@ -42,6 +42,35 @@ export class DebugTestUIManager {
     this.createMapSelectPanel();
 
     this.layoutPanels();
+
+    if (!DebugConstants.ENABLED) {
+      this.hideAllPanels();
+    }
+  }
+
+  /**
+   * Production builds must not show debug UI. Each panel owns an always-visible toggle
+   * button (some sit partly off-screen), so hide the panels themselves, not just their content.
+   */
+  private hideAllPanels(): void {
+    const panels = [
+      this.waveInfoPanel,
+      this.bestiaryPanel,
+      this.statsPanel,
+      this.aiControlPanel,
+      this.mapSelectPanel,
+    ];
+    for (const panel of panels) {
+      if (!panel) {
+        continue;
+      }
+      panel.visible = false;
+      // UIPanel subclasses also own a separately-attached content container
+      if ('getContentContainer' in panel) {
+        panel.close();
+        panel.getContentContainer().visible = false;
+      }
+    }
   }
 
   private createWaveInfoPanel(): void {
@@ -72,11 +101,8 @@ export class DebugTestUIManager {
     this.statsPanel = new StatsPanel(this.gameManager);
     this.app.stage.addChild(this.statsPanel);
 
-    if (DebugConstants.ENABLED) {
-      this.statsPanel.show();
-    } else {
-      this.statsPanel.hide();
-    }
+    // Starts hidden: it overlays the shop. Open it from the debug panel's Stats button.
+    this.statsPanel.hide();
   }
 
   private createAIControlPanel(): void {

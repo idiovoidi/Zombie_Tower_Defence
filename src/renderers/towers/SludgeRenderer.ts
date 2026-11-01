@@ -24,8 +24,8 @@ export class SludgeRenderer extends BaseTowerRenderer {
 
   private renderMakeshiftBase(visual: Graphics, towerSize: number): void {
     // Level 1-2: Makeshift toxic barrel platform
-    visual.rect(-towerSize, -5, towerSize * 2, 25).fill(0x4a5a3a); // Dirty green
-    visual.stroke({ width: 2, color: 0x3a4a2a });
+    visual.rect(-towerSize, -5, towerSize * 2, 25).fill(0x3b2f4a); // Toxic violet
+    visual.stroke({ width: 2, color: 0x2a2038 });
     // Toxic barrels
     visual.rect(-10, 0, 8, 12).fill(0x228b22);
     visual.rect(2, 0, 8, 12).fill(0x228b22);
@@ -42,8 +42,8 @@ export class SludgeRenderer extends BaseTowerRenderer {
 
   private renderIndustrialBase(visual: Graphics, towerSize: number): void {
     // Level 3-4: Industrial toxic storage
-    visual.rect(-towerSize, -5, towerSize * 2, 25).fill(0x3a4a2a); // Dark green
-    visual.stroke({ width: 2, color: 0x2a3a1a });
+    visual.rect(-towerSize, -5, towerSize * 2, 25).fill(0x2f2540); // Dark violet
+    visual.stroke({ width: 2, color: 0x1f1830 });
     // Reinforced tanks
     visual.circle(-6, 5, 8).fill(0x228b22);
     visual.circle(6, 5, 8).fill(0x228b22);
@@ -62,8 +62,8 @@ export class SludgeRenderer extends BaseTowerRenderer {
 
   private renderMilitaryBase(visual: Graphics, towerSize: number): void {
     // Level 5: Military hazmat facility
-    visual.rect(-towerSize, -5, towerSize * 2, 25).fill(0x2a3a1a); // Military green
-    visual.stroke({ width: 3, color: 0x1a2a0a });
+    visual.rect(-towerSize, -5, towerSize * 2, 25).fill(0x241a38); // Hazmat violet
+    visual.stroke({ width: 3, color: 0x150f26 });
     // Armored containment
     visual.circle(-6, 5, 9).fill(0x1a6b1a);
     visual.circle(6, 5, 9).fill(0x1a6b1a);

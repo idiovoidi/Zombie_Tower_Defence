@@ -62,7 +62,14 @@ export type GameEventPayloadMap = {
   [GameEvents.WAVE_END]: undefined;
   [GameEvents.GAME_START]: undefined;
   [GameEvents.GAME_OVER]: { score: number };
-  [GameEvents.GAME_VICTORY]: undefined;
+  [GameEvents.GAME_VICTORY]: {
+    levelId: string;
+    wave: number;
+    score: number;
+    livesRemaining: number;
+    /** Level ids newly unlocked by this win. */
+    unlockedLevelIds: string[];
+  };
   [GameEvents.GAME_PAUSE]: undefined;
   [GameEvents.GAME_RESUME]: undefined;
   [GameEvents.MONEY_EARNED]: number;

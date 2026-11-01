@@ -1,10 +1,3 @@
-import {
-  createHumanoidArm,
-  createHumanoidHead,
-  createHumanoidLegs,
-  createHumanoidShadow,
-  createHumanoidTorso,
-} from './HumanoidPartBuilder';
 import { BaseZombieRenderer } from './BaseZombieRenderer';
 import { ParticleType } from './ZombieParticleSystem';
 
@@ -48,33 +41,10 @@ export class NecroTankRenderer extends BaseZombieRenderer {
       strokeAlpha: 0.75,
     };
 
-    this.shadowPart = createHumanoidShadow(22, 15);
-    const legs = createHumanoidLegs(palette);
-    this.leftLegPart = legs.leftLeg;
-    this.rightLegPart = legs.rightLeg;
-    this.torsoPart = createHumanoidTorso(palette);
-    this.headPart = createHumanoidHead(palette);
-    this.leftArmPart = createHumanoidArm(palette, 'left');
-    this.rightArmPart = createHumanoidArm(palette, 'right');
+    this.buildHumanoidParts(palette, { y: 22, size: 15 });
 
     this.finishInitParts();
   }
-
-  protected getAnimationOffsets() {
-    return {
-      leftLegX: -4.5,
-      leftLegY: 14,
-      rightLegX: 2.5,
-      rightLegY: 14,
-      torsoY: 9,
-      leftArmX: -8,
-      leftArmY: -5.5,
-      rightArmX: 8,
-      rightArmY: -5.5,
-      headY: -18,
-    };
-  }
-
   protected updateWounds(
     healthPercent: number,
     _anim: {
@@ -92,11 +62,11 @@ export class NecroTankRenderer extends BaseZombieRenderer {
   protected override applyHealthTint(healthPercent: number): void {
     // Phase tints: armored purple → cracking orange → exposed necrotic
     if (healthPercent > 0.66) {
-      this.container.tint = 0xcc99ff;
+      this.setTint(0xcc99ff);
     } else if (healthPercent > 0.33) {
-      this.container.tint = 0xff9966;
+      this.setTint(0xff9966);
     } else {
-      this.container.tint = 0xaa66ff;
+      this.setTint(0xaa66ff);
     }
   }
 }

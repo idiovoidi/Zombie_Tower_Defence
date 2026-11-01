@@ -1,10 +1,3 @@
-import {
-  createHumanoidArm,
-  createHumanoidHead,
-  createHumanoidLegs,
-  createHumanoidShadow,
-  createHumanoidTorso,
-} from './HumanoidPartBuilder';
 import { HumanoidZombieRenderer } from './HumanoidZombieRenderer';
 import { ParticleType } from './ZombieParticleSystem';
 
@@ -40,14 +33,7 @@ export class BasicZombieRenderer extends HumanoidZombieRenderer {
       strokeAlpha: 0.6,
     };
 
-    this.shadowPart = createHumanoidShadow();
-    const legs = createHumanoidLegs(palette);
-    this.leftLegPart = legs.leftLeg;
-    this.rightLegPart = legs.rightLeg;
-    this.torsoPart = createHumanoidTorso(palette);
-    this.headPart = createHumanoidHead(palette);
-    this.leftArmPart = createHumanoidArm(palette, 'left');
-    this.rightArmPart = createHumanoidArm(palette, 'right');
+    this.buildHumanoidParts(palette);
 
     this.finishInitParts();
   }

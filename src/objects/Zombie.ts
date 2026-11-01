@@ -10,12 +10,29 @@ import {
   getDamageModifier,
   type TowerType,
 } from '../config/zombieResistances';
+import { lightingManager } from '../renderers/lighting/LightingManager';
+import { lightCastTint } from '../renderers/lighting/zombieLighting';
 import { ZombieRendererFactory } from '../renderers/zombies';
 import type { BaseZombieRenderer } from '../renderers/zombies/BaseZombieRenderer';
 import type { IZombieRenderer, ZombieRenderState } from '../renderers/zombies/ZombieRenderer';
 import { LateralStagger } from '../utils/WalkStagger';
 import { ZombieStats } from '../utils/ZombieStats';
 import { GameObject } from './GameObject';
+import { BurnState } from './zombies/BurnState';
+import {
+  DEFAULT_HEALTH_BAR,
+  getThreatBarSpec,
+  type HealthBarSpec,
+  healthBarColor,
+  shouldShowHealthBar,
+} from './zombies/HealthBarSpec';
+import { KnockbackState } from './zombies/KnockbackState';
+import { LaneOffset } from './zombies/LaneOffset';
+import {
+  getKnockbackResistance,
+  getLaneSpread,
+  getSwayAmplitude,
+} from './zombies/ZombieTypeTraits';
 
 export class Zombie extends GameObject {
   private type: string;
@@ -26,8 +43,11 @@ export class Zombie extends GameObject {
   private currentWaypointIndex = 0;
   private waypoints: { x: number; y: number }[] = [];
   private healthBar: Container | null = null;
-  private healthBarBg!: Graphics;
   private healthBarFg!: Graphics;
+  private healthBarSpec: HealthBarSpec = DEFAULT_HEALTH_BAR;
+  /** True when this type shows a bar by default (threat types); others need the debug flag. */
+  private healthBarByDefault = false;
+  private lastBarPercent = -1;
   private healthComponent!: HealthComponent;
   private transformComponent!: TransformComponent;
   private limbState!: LimbState;
@@ -43,18 +63,11 @@ export class Zombie extends GameObject {
   private isDying = false; // Track if death animation is in progress
   private deathAnimationComplete = false; // Track if animation finished
 
-  // Knockback properties
-  private knockbackDistance = 0; // Remaining knockback distance to travel
-  private knockbackDirection = { x: 0, y: 0 }; // Direction of knockback
-  private knockbackSpeed = 200; // Pixels per second for knockback movement
-  private isBeingKnockedBack = false; // Track if currently in knockback state
-
-  // Burn/fire properties
-  private fireExposureTime = 0; // Time spent in fire (ms) - resets when leaving fire
-  private isBurning = false; // Whether zombie is currently ignited
-  private burnDurationRemaining = 0; // Remaining burn time (ms)
-  private burnDamagePerSecond = 15; // Base burn DPS (~45 over 3s)
-  private wasInFireLastFrame = false; // Track fire exposure for reset logic
+  private knockback = new KnockbackState();
+  private lane = new LaneOffset();
+  /** True while a light colour cast is applied, so it can be cleared once the light is gone. */
+  private hasLightCast = false;
+  private burn = new BurnState();
 
   constructor(type: string, x: number, y: number, wave: number) {
     super();
@@ -91,8 +104,10 @@ export class Zombie extends GameObject {
     this.lastDamageSourcePosition = null;
     this.isSlowed = false;
     this.currentSlowPercent = 0;
-    this.isBeingKnockedBack = false;
-    this.knockbackDistance = 0;
+    this.knockback.reset();
+    this.lane.reset(getLaneSpread(this.type));
+    this.hasLightCast = false;
+    this.pivot.set(0, 0);
     this.visible = true;
     this.alpha = 1;
     this.scale.set(1);
@@ -113,6 +128,7 @@ export class Zombie extends GameObject {
     if (this.healthBar) {
       this.healthBar.visible = false;
     }
+    this.lastBarPercent = -1;
 
     // Reset renderer
     if (this.renderer) {
@@ -120,10 +136,7 @@ export class Zombie extends GameObject {
     }
 
     // Reset burn state
-    this.fireExposureTime = 0;
-    this.isBurning = false;
-    this.burnDurationRemaining = 0;
-    this.wasInFireLastFrame = false;
+    this.burn.reset();
   }
 
   private initializeHealth(wave: number): void {
@@ -139,52 +152,52 @@ export class Zombie extends GameObject {
     // Set base speed, reward, and damage based on type
     switch (this.type) {
       case GameConfig.ZOMBIE_TYPES.BASIC:
-        this.baseSpeed = 50; // pixels per second
+        this.baseSpeed = 25; // pixels per second
         this.reward = 5;
         this.damage = 1; // 1 survivor killed
         break;
       case GameConfig.ZOMBIE_TYPES.FAST:
-        this.baseSpeed = 100;
+        this.baseSpeed = 50;
         this.reward = 8;
         this.damage = 1; // Fast but weak
         break;
       case GameConfig.ZOMBIE_TYPES.TANK:
-        this.baseSpeed = 25;
+        this.baseSpeed = 12.5;
         this.reward = 25;
         this.damage = 5; // Massive damage
         break;
       case GameConfig.ZOMBIE_TYPES.ARMORED:
-        this.baseSpeed = 40;
+        this.baseSpeed = 20;
         this.reward = 15;
         this.damage = 3; // Heavy damage
         break;
       case GameConfig.ZOMBIE_TYPES.SWARM:
-        this.baseSpeed = 60;
+        this.baseSpeed = 30;
         this.reward = 3;
         this.damage = 1; // Small but numerous
         break;
       case GameConfig.ZOMBIE_TYPES.STEALTH:
-        this.baseSpeed = 70;
+        this.baseSpeed = 35;
         this.reward = 12;
         this.damage = 2; // Moderate damage
         break;
       case GameConfig.ZOMBIE_TYPES.MECHANICAL:
-        this.baseSpeed = 55;
+        this.baseSpeed = 27.5;
         this.reward = 20;
         this.damage = 4; // High-tech threat
         break;
       case GameConfig.ZOMBIE_TYPES.BOSS:
-        this.baseSpeed = 18;
+        this.baseSpeed = 9;
         this.reward = 75;
         this.damage = 10; // Devastating camp damage
         break;
       case GameConfig.ZOMBIE_TYPES.NECRO_TANK:
-        this.baseSpeed = 20;
+        this.baseSpeed = 10;
         this.reward = 200;
         this.damage = 8; // Heavy camp damage; slightly less than Boss
         break;
       default:
-        this.baseSpeed = 50;
+        this.baseSpeed = 25;
         this.reward = 5;
         this.damage = 1;
     }
@@ -200,9 +213,7 @@ export class Zombie extends GameObject {
   /** Recompute speed from base, variation, sludge slow, limb penalties, and bonuses. */
   protected recalculateSpeed(): void {
     const slowFactor = this.isSlowed ? 1 - this.currentSlowPercent : 1;
-    const limbMult = this.limbState
-      ? this.limbState.getSpeedMultiplier(this.getHealthRatio())
-      : 1;
+    const limbMult = this.limbState ? this.limbState.getSpeedMultiplier(this.getHealthRatio()) : 1;
     this.speed = this.baseSpeed * this.speedVariation * slowFactor * limbMult + this.speedBonus;
   }
 
@@ -223,17 +234,23 @@ export class Zombie extends GameObject {
       (this.renderer as BaseZombieRenderer).setZombieType(this.type);
     }
 
-    // Create health bar
-    this.healthBarBg = new Graphics();
-    this.healthBarBg.rect(-15, -25, 30, 5).fill(0xff0000);
+    // Health bar: shown only once damaged, and by default only on high-HP threat types
+    const threatSpec = getThreatBarSpec(this.type);
+    this.healthBarByDefault = threatSpec !== null;
+    this.healthBarSpec = threatSpec ?? DEFAULT_HEALTH_BAR;
+    const { width, height, offsetY } = this.healthBarSpec;
+
+    const barBg = new Graphics();
+    barBg
+      .rect(-width / 2 - 1, offsetY - 1, width + 2, height + 2)
+      .fill({ color: 0x000000, alpha: 0.75 });
 
     this.healthBarFg = new Graphics();
-    this.healthBarFg.rect(-15, -25, 30, 5).fill(0x00ff00);
 
     this.healthBar = new Container();
-    this.healthBar.addChild(this.healthBarBg);
+    this.healthBar.addChild(barBg);
     this.healthBar.addChild(this.healthBarFg);
-    this.healthBar.visible = false; // Hide by default
+    this.healthBar.visible = false; // Hidden until damaged
     this.addChild(this.healthBar);
   }
 
@@ -266,15 +283,17 @@ export class Zombie extends GameObject {
       this.renderer.render(this, state);
     }
 
-    // Update health bar (dev flag — health is also readable from zombie colour)
+    this.updateLightCast();
+
+    // Update health bar (threat types by default; debug flag shows it on every type)
     const healthComponent = this.getComponent<HealthComponent>('Health');
     if (healthComponent && this.healthBar) {
-      if (!DebugConstants.SHOW_ZOMBIE_HEALTH_BARS) {
-        this.healthBar.visible = false;
-      } else {
-        const healthPercentage = healthComponent.getHealthPercentage();
-        this.healthBarFg.width = 30 * (healthPercentage / 100);
-        this.healthBar.visible = healthPercentage < 100;
+      const percent = healthComponent.getHealthPercentage();
+      const enabled = this.healthBarByDefault || DebugConstants.SHOW_ZOMBIE_HEALTH_BARS;
+      const show = shouldShowHealthBar(percent, enabled);
+      this.healthBar.visible = show;
+      if (show) {
+        this.redrawHealthBar(percent);
       }
     }
 
@@ -286,10 +305,7 @@ export class Zombie extends GameObject {
 
     // Reset fire exposure tracking if not in fire this frame
     // (This will be set to true by the fire pool system if zombie is in fire)
-    if (!this.wasInFireLastFrame && !this.isBurning) {
-      this.fireExposureTime = 0;
-    }
-    this.wasInFireLastFrame = false;
+    this.burn.endFrame();
   }
 
   private getRenderState(): ZombieRenderState {
@@ -319,7 +335,7 @@ export class Zombie extends GameObject {
     }
 
     // Handle knockback movement first (takes priority over normal movement)
-    if (this.isBeingKnockedBack && this.knockbackDistance > 0) {
+    if (this.knockback.active) {
       this.updateKnockback(deltaTime);
       return;
     }
@@ -347,7 +363,7 @@ export class Zombie extends GameObject {
 
     // Irregular limp lean (eased random targets) instead of a sine weave
     const dt = deltaTime / 1000;
-    const staggerLean = this.lateralStagger.update(dt, this.getSwayAmplitude());
+    const staggerLean = this.lateralStagger.update(dt, getSwayAmplitude(this.type));
 
     // Lateral offset perpendicular to movement direction
     const perpX = -normalizedDy;
@@ -355,6 +371,10 @@ export class Zombie extends GameObject {
 
     this.position.x += moveX + perpX * staggerLean * dt;
     this.position.y += moveY + perpY * staggerLean * dt;
+
+    // Render-only lane offset (pivot shifts the sprite, not the logical position)
+    const lane = this.lane.update(normalizedDx, normalizedDy, dt);
+    this.pivot.set(-lane.x, -lane.y);
 
     // Update transform component to stay in sync
     this.transformComponent.setPosition(this.position.x, this.position.y);
@@ -368,16 +388,14 @@ export class Zombie extends GameObject {
    * @returns True if knockback was applied, false if zombie resists knockback
    */
   public applyKnockback(force: number, sourceX: number, sourceY: number): boolean {
-    // Calculate knockback resistance based on zombie type
-    const resistance = this.getKnockbackResistance();
-    const actualForce = force * (1 - resistance);
+    const actualForce = force * (1 - getKnockbackResistance(this.type));
 
     // If resistance completely nullifies knockback, don't apply
     if (actualForce <= 0) {
       return false;
     }
 
-    // Calculate knockback direction (away from source, along path)
+    // Direction: away from source
     const dx = this.position.x - sourceX;
     const dy = this.position.y - sourceY;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -386,63 +404,17 @@ export class Zombie extends GameObject {
       return false;
     }
 
-    // Normalize direction
-    this.knockbackDirection.x = dx / distance;
-    this.knockbackDirection.y = dy / distance;
-    this.knockbackDistance = actualForce;
-    this.isBeingKnockedBack = true;
-
+    this.knockback.start(dx / distance, dy / distance, actualForce);
     return true;
-  }
-
-  /**
-   * Get knockback resistance based on zombie type
-   * Tank and Armored zombies resist knockback, small zombies are vulnerable
-   */
-  private getKnockbackResistance(): number {
-    switch (this.type) {
-      case GameConfig.ZOMBIE_TYPES.BOSS:
-        return 0.97; // Nearly immovable
-      case GameConfig.ZOMBIE_TYPES.NECRO_TANK:
-        return 0.95; // Bone-plated bulk
-      case GameConfig.ZOMBIE_TYPES.TANK:
-        return 0.9; // 90% resistant (hard to knock back)
-      case GameConfig.ZOMBIE_TYPES.ARMORED:
-        return 0.7; // 70% resistant
-      case GameConfig.ZOMBIE_TYPES.MECHANICAL:
-        return 0.6; // 60% resistant
-      case GameConfig.ZOMBIE_TYPES.STEALTH:
-        return 0.3; // 30% resistant
-      case GameConfig.ZOMBIE_TYPES.FAST:
-        return 0.2; // 20% resistant
-      case GameConfig.ZOMBIE_TYPES.SWARM:
-        return 0.1; // 10% resistant (very vulnerable)
-      default:
-        return 0.3; // 30% resistant (early game vulnerable to knockback)
-    }
   }
 
   /**
    * Update knockback movement
    */
   private updateKnockback(deltaTime: number): void {
-    const moveDistance = this.knockbackSpeed * (deltaTime / 1000);
-    const actualMove = Math.min(moveDistance, this.knockbackDistance);
-
-    // Apply knockback movement
-    this.position.x += this.knockbackDirection.x * actualMove;
-    this.position.y += this.knockbackDirection.y * actualMove;
-
-    // Update remaining knockback distance
-    this.knockbackDistance -= actualMove;
-
-    // End knockback when distance is depleted
-    if (this.knockbackDistance <= 0) {
-      this.isBeingKnockedBack = false;
-      this.knockbackDistance = 0;
-    }
-
-    // Update transform component
+    const move = this.knockback.step(deltaTime);
+    this.position.x += move.x;
+    this.position.y += move.y;
     this.transformComponent.setPosition(this.position.x, this.position.y);
   }
 
@@ -450,33 +422,7 @@ export class Zombie extends GameObject {
    * Check if zombie is currently being knocked back
    */
   public getIsBeingKnockedBack(): boolean {
-    return this.isBeingKnockedBack;
-  }
-
-  // Max lateral stagger lean (px/s) by zombie type
-  private getSwayAmplitude(): number {
-    switch (this.type) {
-      case GameConfig.ZOMBIE_TYPES.BASIC:
-        return 8; // Subtle shamble
-      case GameConfig.ZOMBIE_TYPES.FAST:
-        return 5; // Quick, darting movement
-      case GameConfig.ZOMBIE_TYPES.TANK:
-        return 12; // Heavy limp lean
-      case GameConfig.ZOMBIE_TYPES.ARMORED:
-        return 7; // Heavy armored shamble
-      case GameConfig.ZOMBIE_TYPES.SWARM:
-        return 10; // Erratic stagger
-      case GameConfig.ZOMBIE_TYPES.STEALTH:
-        return 6; // Uneven, unpredictable
-      case GameConfig.ZOMBIE_TYPES.MECHANICAL:
-        return 3; // Minimal drift
-      case GameConfig.ZOMBIE_TYPES.BOSS:
-        return 15; // Massive lumbering limp
-      case GameConfig.ZOMBIE_TYPES.NECRO_TANK:
-        return 14; // Heavy armored stomp
-      default:
-        return 8;
-    }
+    return this.knockback.active;
   }
 
   // Show damage indicator when taking damage
@@ -572,11 +518,17 @@ export class Zombie extends GameObject {
       size: this.getVisualSize(),
       killerType: this.lastDamageSource,
       impactAngle,
+      ragdollCorpse: this.renderer?.hasRagdollCorpse?.() === true,
     });
 
     // Play death animation if using new renderer
     if (this.renderer) {
       await this.renderer.playDeathAnimation(this.lastDamageSource, impactAngle);
+      // The settled ragdoll becomes the corpse, exactly where it lies
+      const body = this.renderer.takeRagdollCorpse?.();
+      if (body) {
+        this.emit('zombieCorpse', { x: this.position.x, y: this.position.y, body });
+      }
     }
 
     // Mark animation complete so ZombieManager can remove this zombie
@@ -591,6 +543,47 @@ export class Zombie extends GameObject {
   }
 
   // Get visual size for corpse creation
+  /**
+   * Colour-cast this zombie by nearby explosions, fire and arcs (multiply tint, so it shifts hue
+   * without a per-zombie overlay). Free when no lights exist: one boolean check per frame.
+   */
+  private updateLightCast(): void {
+    if (!this.renderer?.setLightCast) {
+      return;
+    }
+    if (!lightingManager.hasPointLights()) {
+      if (this.hasLightCast) {
+        this.renderer.setLightCast(0xffffff);
+        this.hasLightCast = false;
+      }
+      return;
+    }
+    const sample = lightingManager.sampleEnvironment(this.position.x, this.position.y);
+    if (sample.strength < 0.02) {
+      if (this.hasLightCast) {
+        this.renderer.setLightCast(0xffffff);
+        this.hasLightCast = false;
+      }
+      return;
+    }
+    this.renderer.setLightCast(lightCastTint(sample.strength, sample.color));
+    this.hasLightCast = true;
+  }
+
+  /** Redraw the fill only when the displayed percentage actually changes. */
+  private redrawHealthBar(percent: number): void {
+    const rounded = Math.round(percent);
+    if (rounded === this.lastBarPercent) {
+      return;
+    }
+    this.lastBarPercent = rounded;
+    const { width, height, offsetY } = this.healthBarSpec;
+    this.healthBarFg
+      .clear()
+      .rect(-width / 2, offsetY, (width * rounded) / 100, height)
+      .fill(healthBarColor(rounded));
+  }
+
   private getVisualSize(): number {
     switch (this.type) {
       case GameConfig.ZOMBIE_TYPES.BOSS:
@@ -708,44 +701,9 @@ export class Zombie extends GameObject {
    * After 1 second of continuous exposure, zombie gets ignited
    */
   public updateFireExposure(deltaTime: number): void {
-    this.wasInFireLastFrame = true;
-
-    // If already burning, don't accumulate more exposure time
-    // Instead, extend burn duration slightly (refresh the fire)
-    if (this.isBurning) {
-      // Refresh burn duration up to max (add 0.5s per frame in fire, cap at 3s)
-      const maxBurnDuration = 3000; // 3 seconds
-      this.burnDurationRemaining = Math.min(
-        this.burnDurationRemaining + deltaTime * 0.5,
-        maxBurnDuration
-      );
-      return;
-    }
-
-    // Accumulate fire exposure time
-    this.fireExposureTime += deltaTime;
-
-    // Ignite after 1 second of continuous fire exposure
-    const igniteTime = 1000; // 1 second
-    if (this.fireExposureTime >= igniteTime) {
-      this.applyIgnition();
-    }
-  }
-
-  /**
-   * Apply ignition - set zombie on fire for 3 seconds
-   */
-  private applyIgnition(): void {
-    if (this.isBurning || this.isDying) {
-      return;
-    }
-
-    this.isBurning = true;
-    this.burnDurationRemaining = 3000; // 3 seconds of burn damage
-
-    // Visual feedback via renderer
-    if (this.renderer) {
-      this.renderer.showBurningEffect?.();
+    if (this.burn.addExposure(deltaTime, !this.isDying)) {
+      // Visual feedback via renderer
+      this.renderer?.showBurningEffect?.();
     }
   }
 
@@ -753,26 +711,14 @@ export class Zombie extends GameObject {
    * Update burn state - apply damage and manage burn duration
    */
   private updateBurn(deltaTime: number): void {
-    if (!this.isBurning || this.isDying) {
+    if (!this.burn.isBurning || this.isDying) {
       return;
     }
 
-    // Calculate damage for this frame
-    const damageThisFrame = (this.burnDamagePerSecond * deltaTime) / 1000;
-    this.takeDamage(damageThisFrame, 'Flame');
+    this.takeDamage(this.burn.damageFor(deltaTime), 'Flame');
 
-    // Reduce burn duration
-    this.burnDurationRemaining -= deltaTime;
-
-    // Stop burning when duration expires
-    if (this.burnDurationRemaining <= 0) {
-      this.isBurning = false;
-      this.burnDurationRemaining = 0;
-
-      // Stop visual effect via renderer
-      if (this.renderer) {
-        this.renderer.stopBurningEffect?.();
-      }
+    if (this.burn.advance(deltaTime)) {
+      this.renderer?.stopBurningEffect?.();
     }
   }
 
@@ -780,23 +726,20 @@ export class Zombie extends GameObject {
    * Check if zombie is currently burning
    */
   public getIsBurning(): boolean {
-    return this.isBurning;
+    return this.burn.isBurning;
   }
 
   /**
    * Get remaining burn duration (for visual effects)
    */
   public getBurnDurationRemaining(): number {
-    return this.burnDurationRemaining;
+    return this.burn.burnRemainingMs;
   }
 
   /**
    * Get fire exposure progress (0 to 1, where 1 = ignited)
    */
   public getFireExposureProgress(): number {
-    if (this.isBurning) {
-      return 1;
-    }
-    return Math.min(this.fireExposureTime / 1000, 1);
+    return this.burn.exposureProgress;
   }
 }

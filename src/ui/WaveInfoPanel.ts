@@ -108,7 +108,7 @@ export class WaveInfoPanel extends UIPanel {
     }
 
     // Legend
-    y = this.buildLegend(y + 4, pad);
+    this.buildLegend(y + 4, pad);
   }
 
   private buildHeaderRow(y: number, pad: number): number {

@@ -151,12 +151,83 @@ export class MetalUI {
     return panel;
   }
 
+  /**
+   * Centered riveted caution panel with a title bar already attached.
+   * Used by full-screen modal menus (main menu, game over, ...).
+   */
+  static createMenuPanel(options: {
+    screenWidth: number;
+    screenHeight: number;
+    width: number;
+    height: number;
+    /** Vertical nudge from true center (negative = up). */
+    offsetY: number;
+    title: string;
+    subtitle: string;
+    titleBarY: number;
+    titleColor?: number;
+  }): Container {
+    const panel = new Container();
+    panel.position.set(
+      (options.screenWidth - options.width) / 2,
+      (options.screenHeight - options.height) / 2 + options.offsetY
+    );
+
+    panel.addChild(
+      MetalUI.createMetalPanel({
+        width: options.width,
+        height: options.height,
+        cautionTop: true,
+        cautionBottom: true,
+        rivets: true,
+      })
+    );
+
+    const titleBar = MetalUI.createTitleBar(
+      options.width - 40,
+      48,
+      options.title,
+      options.subtitle,
+      options.titleColor ?? UI_COLORS.ALERT
+    );
+    titleBar.position.set(20, options.titleBarY);
+    panel.addChild(titleBar);
+    return panel;
+  }
+
+  /**
+   * Full-height steel plate for the column right of the 1024px playfield (where the shop sits
+   * in-game). Placed under all UI so menu screens do not show a black strip there.
+   */
+  static createSidePlate(width: number, height: number): Container {
+    const plate = new Container();
+    plate.eventMode = 'none';
+    plate.addChild(TextureGenerator.createCorrugatedMetal(width, height));
+
+    const inner = TextureGenerator.createRustyMetal(width - 20, height - 20);
+    inner.position.set(10, 10);
+    plate.addChild(inner);
+
+    const trim = new Graphics();
+    // Hazard-dashed seam where the plate meets the map
+    for (let y = 0; y < height; y += 24) {
+      trim.rect(0, y, 6, 12).fill({ color: UI_COLORS.WARNING, alpha: 0.85 });
+      trim.rect(0, y + 12, 6, 12).fill({ color: UI_COLORS.METAL_DARK, alpha: 0.9 });
+    }
+    trim.rect(0, 0, width, height).stroke({ width: 3, color: UI_COLORS.METAL_PANEL });
+    plate.addChild(trim);
+
+    MetalUI.addCornerRivets(plate, width, height, 5, false);
+    return plate;
+  }
+
   static createTitleBar(
     width: number,
     height: number,
     title: string,
     subtitle?: string,
-    titleColor: number = UI_COLORS.ALERT
+    titleColor: number = UI_COLORS.ALERT,
+    subtitleStyle: { fontSize?: number; fill?: number } = {}
   ): Container {
     const bar = new Container();
 
@@ -193,8 +264,8 @@ export class MetalUI {
         text: subtitle,
         style: {
           fontFamily: UI_FONTS.BODY,
-          fontSize: 9,
-          fill: UI_COLORS.TEXT_DIM,
+          fontSize: subtitleStyle.fontSize ?? 9,
+          fill: subtitleStyle.fill ?? UI_COLORS.TEXT_DIM,
           fontWeight: 'bold',
           letterSpacing: 1,
         },
@@ -454,6 +525,7 @@ export class MetalUI {
         fontFamily: UI_FONTS.MONO,
         fontSize: 11,
         fill: UI_COLORS.TEXT_DIM,
+        align: 'center',
       },
     });
     subText.anchor.set(0.5, 0.5);

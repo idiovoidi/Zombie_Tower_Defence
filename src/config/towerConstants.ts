@@ -9,9 +9,11 @@ import { DebugConstants } from './debugConstants';
  * Base stats are what a freshly placed (level 1) tower uses.
  * Upgrade scaling is in balanceConstants.ts (tiers = level - 1).
  *
- * Rough base DPS/$ targets (single-target, ignoring AoE):
- *   MG ~0.14 | Shotgun ~0.08 | Sniper ~0.09 | Flame ~0.07
- *   Tesla ~0.04 ST (~0.09 with chains) | Grenade ~0.007 ST (~0.03 with blast)
+ * Economy scale: costs are authored at 1/10 of the original catalog (MG 25, Sniper 90, ...)
+ * and ranges at 1.5x the original role bands, matching the values the waves were tuned against.
+ * Rough base DPS/$ targets (single-target, ignoring AoE), ~10x the old figures:
+ *   MG ~1.4 | Shotgun ~0.8 | Sniper ~0.9 | Flame ~0.7
+ *   Tesla ~0.4 ST (~0.9 with chains) | Grenade ~0.07 ST (~0.3 with blast)
  */
 
 export type IdleAnimationType =
@@ -73,8 +75,8 @@ const ghostDrawGrenade = (g: Graphics) => {
 };
 
 const ghostDrawSludge = (g: Graphics) => {
-  g.rect(-18, -5, 36, 25).fill(0x4a5a3a);
-  g.rect(-18, -5, 36, 25).stroke({ width: 2, color: 0x3a4a2a });
+  g.rect(-18, -5, 36, 25).fill(0x3b2f4a);
+  g.rect(-18, -5, 36, 25).stroke({ width: 2, color: 0x2a2038 });
   g.rect(-10, 0, 8, 12).fill(0x228b22);
   g.rect(2, 0, 8, 12).fill(0x228b22);
   g.circle(-6, 6, 3).fill({ color: 0x00ff00, alpha: 0.7 });
@@ -86,9 +88,9 @@ const ghostDrawSludge = (g: Graphics) => {
 export const TowerConstants = {
   // Machine Gun — cheap swarm shredder (mid range, high RoF)
   MACHINE_GUN: {
-    cost: 250,
+    cost: 25,
     damage: 5,
-    range: 140,
+    range: 210,
     fireRate: 7,
     health: 120,
     specialAbility: 'High fire rate, upgrades increase speed',
@@ -102,9 +104,9 @@ export const TowerConstants = {
 
   // Sniper — long-range single target; high overkill risk on swarms
   SNIPER: {
-    cost: 900,
+    cost: 90,
     damage: 95,
-    range: 350,
+    range: 525,
     fireRate: 0.85,
     health: 80,
     specialAbility: 'High single-target damage, armor-piercing',
@@ -118,9 +120,9 @@ export const TowerConstants = {
 
   // Shotgun — short cone burst
   SHOTGUN: {
-    cost: 400,
+    cost: 40,
     damage: 40,
-    range: 110,
+    range: 165,
     fireRate: 0.8,
     health: 100,
     specialAbility: 'Double barrel: 2 quick shots then reload, cone spread',
@@ -134,9 +136,9 @@ export const TowerConstants = {
 
   // Flame — short DoT / area burn (damage is burst; burn carries DPS)
   FLAME: {
-    cost: 750,
+    cost: 75,
     damage: 100,
-    range: 110,
+    range: 165,
     fireRate: 0.5,
     health: 90,
     specialAbility: 'Area damage over time, burning effect',
@@ -150,9 +152,9 @@ export const TowerConstants = {
 
   // Tesla — mid chain lightning (ST DPS intentionally low; chains add value)
   TESLA: {
-    cost: 1500,
+    cost: 150,
     damage: 55,
-    range: 145,
+    range: 217,
     fireRate: 1.2,
     health: 110,
     specialAbility: 'Chain lightning, affects multiple targets',
@@ -166,9 +168,9 @@ export const TowerConstants = {
 
   // Grenade — slow inaccurate blast (ST weak; clumps are the job)
   GRENADE: {
-    cost: 1250,
+    cost: 125,
     damage: 32,
-    range: 135,
+    range: 202,
     fireRate: 0.28,
     health: 95,
     specialAbility: 'Explosive area damage, inaccurate arc (RNG cone)',
@@ -182,9 +184,9 @@ export const TowerConstants = {
 
   // Sludge — pure CC
   SLUDGE: {
-    cost: 800,
+    cost: 80,
     damage: 0,
-    range: 100,
+    range: 150,
     fireRate: 0.25,
     health: 110,
     specialAbility: 'Creates toxic pools that slow zombies',

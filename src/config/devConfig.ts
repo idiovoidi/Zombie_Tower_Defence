@@ -86,8 +86,10 @@ export const DevConfig = {
 
   // Testing settings
   TESTING: {
-    AUTO_START_GAME: true,
-    SKIP_MENU: true,
+    // Dev convenience only: jump straight into a level. Production shows the real menus
+    // (main menu -> level select), which progression and the map creator depend on.
+    AUTO_START_GAME: import.meta.env.DEV,
+    SKIP_MENU: import.meta.env.DEV,
     DEFAULT_LEVEL: 'level1',
     UNLOCK_ALL_LEVELS: true,
     INFINITE_RESOURCES: false,

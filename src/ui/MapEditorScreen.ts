@@ -1,5 +1,6 @@
-import { Graphics, Text } from 'pixi.js';
+import { type Container, Graphics, Text } from 'pixi.js';
 import { GameConfig } from '../config/gameConfig';
+import { UI_COLORS, UI_FONTS } from '../config/uiTheme';
 import { PATH, UI_DIMENSIONS } from '../config/visualConstants';
 import {
   appendSnappedWaypoint,
@@ -10,15 +11,17 @@ import {
   removeLastWaypoint,
   validateCustomMap,
 } from '../customMaps';
+import { pickJsonFileText } from '../customMaps/pickJsonFile';
 import type { ZombieGroup } from '../managers/WaveManager';
+import { type MetalButtonVariant, MetalUI } from './theme/MetalUI';
 import { UIComponent } from './UIComponent';
 
 type EditorTab = 'path' | 'waves';
 
-interface ButtonHandle {
-  bg: Graphics;
-  label: Text;
-}
+/** Sidebar column beside the 1024px playfield (matches the in-game shop column). */
+const SIDEBAR_WIDTH = 256;
+const SIDEBAR_PADDING = 12;
+const SIDEBAR_INNER_WIDTH = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2;
 
 /**
  * Functional custom map creator: grid-snap path editing, wave overrides, save/export/import/play.
@@ -33,9 +36,11 @@ export class MapEditorScreen extends UIComponent {
   private gridGfx: Graphics;
   private pathGfx: Graphics;
   private waypointGfx: Graphics;
-  private panelBg: Graphics;
+  private tabMarker: Graphics;
+  /** Buttons that belong to a single tab; the other tab's controls are hidden. */
+  private pathControls: Container[] = [];
+  private waveControls: Container[] = [];
 
-  private titleText: Text;
   private statusText: Text;
   private metaText: Text;
   private waveInfoText: Text;
@@ -55,40 +60,37 @@ export class MapEditorScreen extends UIComponent {
     this.gridGfx = new Graphics();
     this.pathGfx = new Graphics();
     this.waypointGfx = new Graphics();
-    this.panelBg = new Graphics();
+    this.tabMarker = new Graphics();
 
-    this.titleText = new Text({
-      text: 'MAP CREATOR',
-      style: { fontFamily: 'Arial', fontSize: 28, fontWeight: 'bold', fill: 0xffffff },
-    });
     this.statusText = new Text({
       text: '',
       style: {
-        fontFamily: 'Arial',
-        fontSize: 14,
-        fill: 0xffcc66,
+        fontFamily: UI_FONTS.BODY,
+        fontSize: 13,
+        fill: UI_COLORS.WARNING,
         wordWrap: true,
-        wordWrapWidth: 240,
+        wordWrapWidth: SIDEBAR_INNER_WIDTH,
       },
     });
     this.metaText = new Text({
       text: '',
       style: {
-        fontFamily: 'Arial',
-        fontSize: 14,
-        fill: 0xdddddd,
-        wordWrap: true,
-        wordWrapWidth: 240,
+        fontFamily: UI_FONTS.MONO,
+        fontSize: 12,
+        fontWeight: 'bold',
+        fill: UI_COLORS.TEXT_DIM,
+        lineHeight: 17,
       },
     });
     this.waveInfoText = new Text({
       text: '',
       style: {
-        fontFamily: 'Arial',
-        fontSize: 13,
-        fill: 0xeeeeee,
+        fontFamily: UI_FONTS.MONO,
+        fontSize: 12,
+        fill: UI_COLORS.TEXT,
         wordWrap: true,
-        wordWrapWidth: 240,
+        wordWrapWidth: SIDEBAR_INNER_WIDTH,
+        lineHeight: 17,
       },
     });
 
@@ -145,7 +147,7 @@ export class MapEditorScreen extends UIComponent {
   private buildLayout(): void {
     const playW = UI_DIMENSIONS.PLAY_AREA_WIDTH;
     const playH = UI_DIMENSIONS.HEIGHT;
-    const panelX = playW + 8;
+    const panelX = playW;
 
     this.playArea.rect(0, 0, playW, playH).fill(0x2a2a22);
     this.playArea.eventMode = 'static';
@@ -170,56 +172,66 @@ export class MapEditorScreen extends UIComponent {
     this.addChild(this.pathGfx);
     this.addChild(this.waypointGfx);
 
-    this.panelBg.roundRect(panelX, 0, GameConfig.UI_SHOP_WIDTH - 16, playH, 8).fill(0x1a1a1a);
-    this.addChild(this.panelBg);
+    const plate = MetalUI.createSidePlate(SIDEBAR_WIDTH, playH);
+    plate.position.set(panelX, 0);
+    this.addChild(plate);
 
-    this.titleText.position.set(panelX + 12, 12);
-    this.addChild(this.titleText);
+    const left = panelX + SIDEBAR_PADDING;
 
-    this.metaText.position.set(panelX + 12, 48);
+    const titleBar = MetalUI.createTitleBar(
+      SIDEBAR_INNER_WIDTH,
+      46,
+      'MAP CREATOR',
+      'DESIGN YOUR BATTLEFIELD',
+      UI_COLORS.WARNING,
+      { fontSize: 10, fill: UI_COLORS.TEXT }
+    );
+    titleBar.position.set(left, 14);
+    this.addChild(titleBar);
+
+    this.metaText.position.set(left, 70);
     this.addChild(this.metaText);
 
-    this.waveInfoText.position.set(panelX + 12, 280);
+    this.waveInfoText.position.set(left, 246);
     this.addChild(this.waveInfoText);
 
-    this.statusText.position.set(panelX + 12, playH - 90);
+    this.statusText.position.set(left, playH - 92);
     this.addChild(this.statusText);
 
-    const btnW = 108;
-    const btnH = 32;
-    const left = panelX + 12;
-    let y = 120;
+    this.addChild(this.tabMarker);
 
-    this.addButton(left, y, btnW, btnH, 'Path', 0x445566, () => {
+    const btnW = 112;
+    const btnH = 30;
+    const col2 = left + btnW + 8;
+
+    this.addButton(left, 156, btnW, btnH, 'Path', 'neutral', () => {
       this.tab = 'path';
       this.refreshView();
     });
-    this.addButton(left + btnW + 8, y, btnW, btnH, 'Waves', 0x445566, () => {
+    this.addButton(col2, 156, btnW, btnH, 'Waves', 'neutral', () => {
       this.tab = 'waves';
       this.refreshView();
     });
-    y += 40;
 
-    this.addButton(left, y, btnW, btnH, 'Undo Pt', 0x666633, () => {
+    this.addPathButton(left, 200, btnW, btnH, 'Undo Pt', 'neutral', () => {
       this.doc.map.waypoints = removeLastWaypoint(this.doc.map.waypoints);
       this.statusMessage = 'Removed last waypoint';
       this.refreshView();
     });
-    this.addButton(left + btnW + 8, y, btnW, btnH, 'Clear Path', 0x663333, () => {
+    this.addPathButton(col2, 200, btnW, btnH, 'Clear Path', 'danger', () => {
       this.doc.map.waypoints = [];
       this.statusMessage = 'Path cleared';
       this.refreshView();
     });
-    y += 40;
 
-    this.addButton(left, y, btnW, btnH, 'Rename', 0x335566, () => {
+    this.addPathButton(left, 240, btnW, btnH, 'Rename', 'neutral', () => {
       const name = window.prompt('Map name', this.doc.name);
       if (name?.trim()) {
         this.doc.name = name.trim();
         this.refreshView();
       }
     });
-    this.addButton(left + btnW + 8, y, btnW, btnH, 'Money ±', 0x335566, () => {
+    this.addPathButton(col2, 240, btnW, btnH, 'Money ±', 'neutral', () => {
       const raw = window.prompt('Starting money', String(this.doc.level.startingMoney));
       if (raw !== null) {
         const n = Number(raw);
@@ -229,9 +241,8 @@ export class MapEditorScreen extends UIComponent {
         }
       }
     });
-    y += 40;
 
-    this.addButton(left, y, btnW, btnH, 'Lives ±', 0x335566, () => {
+    this.addPathButton(left, 280, btnW, btnH, 'Lives ±', 'neutral', () => {
       const raw = window.prompt('Starting lives', String(this.doc.level.startingLives));
       if (raw !== null) {
         const n = Number(raw);
@@ -241,7 +252,7 @@ export class MapEditorScreen extends UIComponent {
         }
       }
     });
-    this.addButton(left + btnW + 8, y, btnW, btnH, 'Difficulty', 0x335566, () => {
+    this.addPathButton(col2, 280, btnW, btnH, 'Difficulty', 'neutral', () => {
       const order: CustomMapDocument['level']['difficulty'][] = [
         'Easy',
         'Normal',
@@ -254,21 +265,19 @@ export class MapEditorScreen extends UIComponent {
     });
 
     // Wave controls (always present; meaningful on Waves tab)
-    y = 250;
-    this.addButton(left, y, 50, btnH, 'W-', 0x444466, () => {
+    this.addWaveButton(left, 200, 40, btnH, 'W-', 'neutral', () => {
       this.selectedWave = Math.max(1, this.selectedWave - 1);
       this.refreshView();
     });
-    this.addButton(left + 56, y, 50, btnH, 'W+', 0x444466, () => {
+    this.addWaveButton(left + 44, 200, 40, btnH, 'W+', 'neutral', () => {
       this.selectedWave += 1;
       this.refreshView();
     });
-    this.addButton(left + 112, y, 100, btnH, 'Copy Def', 0x446644, () => {
+    this.addWaveButton(left + 88, 200, 144, btnH, 'Copy Def', 'ready', () => {
       this.copyDefaultWave();
     });
 
-    y = 430;
-    this.addButton(left, y, btnW, btnH, 'Add Group', 0x446644, () => {
+    this.addWaveButton(left, 392, btnW, btnH, 'Add Group', 'ready', () => {
       this.ensureWaveEntry();
       const entry = this.getSelectedWaveEntry();
       if (entry) {
@@ -280,7 +289,7 @@ export class MapEditorScreen extends UIComponent {
         this.refreshView();
       }
     });
-    this.addButton(left + btnW + 8, y, btnW, btnH, 'Del Group', 0x664444, () => {
+    this.addWaveButton(col2, 392, btnW, btnH, 'Del Group', 'danger', () => {
       const entry = this.getSelectedWaveEntry();
       if (entry && entry.groups.length > 0) {
         entry.groups.pop();
@@ -291,8 +300,7 @@ export class MapEditorScreen extends UIComponent {
       }
     });
 
-    y = 470;
-    this.addButton(left, y, btnW, btnH, 'Cycle Type', 0x555577, () => {
+    this.addWaveButton(left, 430, btnW, btnH, 'Cycle Type', 'neutral', () => {
       const entry = this.getSelectedWaveEntry();
       const group = entry?.groups[entry.groups.length - 1];
       if (group) {
@@ -301,7 +309,7 @@ export class MapEditorScreen extends UIComponent {
         this.refreshView();
       }
     });
-    this.addButton(left + btnW + 8, y, btnW, btnH, 'Count +5', 0x555577, () => {
+    this.addWaveButton(col2, 430, btnW, btnH, 'Count +5', 'neutral', () => {
       const entry = this.getSelectedWaveEntry();
       const group = entry?.groups[entry.groups.length - 1];
       if (group) {
@@ -310,8 +318,7 @@ export class MapEditorScreen extends UIComponent {
       }
     });
 
-    y = 510;
-    this.addButton(left, y, btnW, btnH, 'Count -1', 0x555577, () => {
+    this.addWaveButton(left, 468, btnW, btnH, 'Count -1', 'neutral', () => {
       const entry = this.getSelectedWaveEntry();
       const group = entry?.groups[entry.groups.length - 1];
       if (group) {
@@ -319,7 +326,7 @@ export class MapEditorScreen extends UIComponent {
         this.refreshView();
       }
     });
-    this.addButton(left + btnW + 8, y, btnW, btnH, 'Interval', 0x555577, () => {
+    this.addWaveButton(col2, 468, btnW, btnH, 'Interval', 'neutral', () => {
       const entry = this.getSelectedWaveEntry();
       const group = entry?.groups[entry.groups.length - 1];
       if (group) {
@@ -334,19 +341,16 @@ export class MapEditorScreen extends UIComponent {
       }
     });
 
-    y = 560;
-    this.addButton(left, y, btnW, btnH, 'Save', 0x228822, () => this.saveDoc());
-    this.addButton(left + btnW + 8, y, btnW, btnH, 'Export', 0x226688, () => this.exportDoc());
-    y += 40;
-    this.addButton(left, y, btnW, btnH, 'Import', 0x886622, () => {
+    this.addButton(left, 552, btnW, btnH, 'Save', 'ready', () => this.saveDoc());
+    this.addButton(col2, 552, btnW, btnH, 'Export', 'neutral', () => this.exportDoc());
+    this.addButton(left, 590, btnW, btnH, 'Import', 'neutral', () => {
       this.importDoc().catch(err => {
         this.statusMessage = err instanceof Error ? err.message : 'Import failed';
         this.refreshView();
       });
     });
-    this.addButton(left + btnW + 8, y, btnW, btnH, 'Play', 0x22aa44, () => this.playDoc());
-    y += 40;
-    this.addButton(left, y, btnW * 2 + 8, btnH, 'Back', 0xaa2222, () => {
+    this.addButton(col2, 590, btnW, btnH, 'Play', 'ready', () => this.playDoc());
+    this.addButton(left, 628, SIDEBAR_INNER_WIDTH, btnH, 'Back', 'danger', () => {
       this.onBackCallback?.();
     });
   }
@@ -357,29 +361,28 @@ export class MapEditorScreen extends UIComponent {
     w: number,
     h: number,
     label: string,
-    color: number,
+    variant: MetalButtonVariant,
     onClick: () => void
-  ): ButtonHandle {
-    const bg = new Graphics();
-    bg.roundRect(0, 0, w, h, 6).fill(color);
-    bg.position.set(x, y);
-    bg.eventMode = 'static';
-    bg.cursor = 'pointer';
-    bg.on('pointerdown', e => {
-      e.stopPropagation();
-      onClick();
+  ): Container {
+    const button = MetalUI.createMetalButton({
+      label: label.toUpperCase(),
+      variant,
+      width: w,
+      height: h,
+      fontSize: 12,
+      onClick,
     });
-    this.addChild(bg);
+    button.position.set(x, y);
+    this.addChild(button);
+    return button;
+  }
 
-    const text = new Text({
-      text: label,
-      style: { fontFamily: 'Arial', fontSize: 13, fill: 0xffffff, align: 'center' },
-    });
-    text.anchor.set(0.5);
-    text.position.set(x + w / 2, y + h / 2);
-    this.addChild(text);
+  private addPathButton(...args: Parameters<MapEditorScreen['addButton']>): void {
+    this.pathControls.push(this.addButton(...args));
+  }
 
-    return { bg, label: text };
+  private addWaveButton(...args: Parameters<MapEditorScreen['addButton']>): void {
+    this.waveControls.push(this.addButton(...args));
   }
 
   private drawGrid(): void {
@@ -409,18 +412,66 @@ export class MapEditorScreen extends UIComponent {
     }
 
     if (wps.length >= 2) {
-      this.pathGfx.setStrokeStyle({ width: PATH.WIDTH, color: 0x6a5a4a, alpha: 0.9 });
-      this.pathGfx.moveTo(wps[0].x, wps[0].y);
-      for (let i = 1; i < wps.length; i++) {
-        this.pathGfx.lineTo(wps[i].x, wps[i].y);
-      }
-      this.pathGfx.stroke();
+      // Road: dark border, dirt surface, then a dashed centre line and direction chevrons
+      const trace = (g: Graphics): void => {
+        g.moveTo(wps[0].x, wps[0].y);
+        for (let i = 1; i < wps.length; i++) {
+          g.lineTo(wps[i].x, wps[i].y);
+        }
+      };
+      trace(this.pathGfx);
+      this.pathGfx.stroke({ width: PATH.WIDTH + 8, color: 0x2a2018, join: 'round', cap: 'round' });
+      trace(this.pathGfx);
+      this.pathGfx.stroke({ width: PATH.WIDTH, color: 0x6a5a4a, join: 'round', cap: 'round' });
+      this.drawPathGuides(wps);
     }
 
     wps.forEach((wp, i) => {
-      const color = i === 0 ? 0x44ff44 : i === wps.length - 1 ? 0xff4444 : 0xffdd44;
-      this.waypointGfx.circle(wp.x, wp.y, 6).fill(color);
+      const isStart = i === 0;
+      const isEnd = i === wps.length - 1 && wps.length > 1;
+      const color = isStart ? 0x44ff44 : isEnd ? 0xff4444 : 0xffdd44;
+      const radius = isStart || isEnd ? 9 : 6;
+      this.waypointGfx.circle(wp.x, wp.y, radius + 2).fill({ color: 0x000000, alpha: 0.6 });
+      this.waypointGfx.circle(wp.x, wp.y, radius).fill(color);
+      this.waypointGfx
+        .circle(wp.x, wp.y, radius)
+        .stroke({ width: 2, color: 0xffffff, alpha: 0.85 });
     });
+  }
+
+  /** Dashed centre line plus a chevron at each segment midpoint showing travel direction. */
+  private drawPathGuides(wps: { x: number; y: number }[]): void {
+    const dash = 14;
+    const gap = 10;
+    for (let i = 0; i < wps.length - 1; i++) {
+      const { x: x0, y: y0 } = wps[i];
+      const { x: x1, y: y1 } = wps[i + 1];
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      if (len < 1) {
+        continue;
+      }
+      const ux = (x1 - x0) / len;
+      const uy = (y1 - y0) / len;
+
+      for (let d = 0; d < len; d += dash + gap) {
+        const end = Math.min(d + dash, len);
+        this.pathGfx.moveTo(x0 + ux * d, y0 + uy * d).lineTo(x0 + ux * end, y0 + uy * end);
+      }
+      this.pathGfx.stroke({ width: 2, color: 0xffee88, alpha: 0.55 });
+
+      if (len >= 48) {
+        const mx = x0 + (x1 - x0) / 2;
+        const my = y0 + (y1 - y0) / 2;
+        const px = -uy;
+        const py = ux;
+        const size = 8;
+        this.pathGfx
+          .moveTo(mx - ux * size + px * size, my - uy * size + py * size)
+          .lineTo(mx + ux * size, my + uy * size)
+          .lineTo(mx - ux * size - px * size, my - uy * size - py * size)
+          .stroke({ width: 3, color: 0xffee88, alpha: 0.8, join: 'round', cap: 'round' });
+      }
+    }
   }
 
   private getSelectedWaveEntry(): CustomWaveOverride | undefined {
@@ -455,32 +506,62 @@ export class MapEditorScreen extends UIComponent {
     this.refreshView();
   }
 
+  /** Show only the active tab's controls and underline the active tab button. */
+  private applyTabState(): void {
+    const onPath = this.tab === 'path';
+    for (const control of this.pathControls) {
+      control.visible = onPath;
+    }
+    for (const control of this.waveControls) {
+      control.visible = !onPath;
+    }
+
+    const left = UI_DIMENSIONS.PLAY_AREA_WIDTH + SIDEBAR_PADDING;
+    const buttonW = 112;
+    const markerX = onPath ? left : left + buttonW + 8;
+    this.tabMarker
+      .clear()
+      .rect(markerX, 156 + 30 + 3, buttonW, 4)
+      .fill(UI_COLORS.WARNING);
+  }
+
   private refreshView(): void {
     this.drawGrid();
     this.drawPath();
 
     this.metaText.text = [
-      `Name: ${this.doc.name}`,
-      `Points: ${this.doc.map.waypoints.length}`,
-      `Money: ${this.doc.level.startingMoney}  Lives: ${this.doc.level.startingLives}`,
-      `Difficulty: ${this.doc.level.difficulty}`,
-      `Tab: ${this.tab.toUpperCase()}`,
+      `NAME   ${this.doc.name}`,
+      `POINTS ${this.doc.map.waypoints.length}`,
+      `FUNDS  $${this.doc.level.startingMoney}`,
+      `LIVES  ${this.doc.level.startingLives}`,
+      `LEVEL  ${this.doc.level.difficulty.toUpperCase()}`,
     ].join('\n');
+
+    this.applyTabState();
 
     const entry = this.getSelectedWaveEntry();
     const groupLines = entry?.groups.map(
       (g, i) => `  ${i + 1}. ${g.type} x${g.count} @${g.spawnInterval}s`
     ) ?? ['  (using built-in default)'];
-    this.waveInfoText.text = [`Wave ${this.selectedWave}`, ...groupLines].join('\n');
+    this.waveInfoText.text = [`WAVE ${this.selectedWave}`, ...groupLines].join('\n');
+    this.waveInfoText.visible = this.tab === 'waves';
 
     this.statusText.text = this.statusMessage;
   }
 
-  private saveDoc(): void {
+  /** Validate the working document; on failure show the first error and return false. */
+  private validateOrReport(): boolean {
     const result = validateCustomMap(this.doc);
-    if (!result.valid) {
-      this.statusMessage = `Fix: ${result.errors[0]}`;
-      this.refreshView();
+    if (result.valid) {
+      return true;
+    }
+    this.statusMessage = `Fix: ${result.errors[0]}`;
+    this.refreshView();
+    return false;
+  }
+
+  private saveDoc(): void {
+    if (!this.validateOrReport()) {
       return;
     }
     try {
@@ -493,10 +574,7 @@ export class MapEditorScreen extends UIComponent {
   }
 
   private exportDoc(): void {
-    const result = validateCustomMap(this.doc);
-    if (!result.valid) {
-      this.statusMessage = `Fix: ${result.errors[0]}`;
-      this.refreshView();
+    if (!this.validateOrReport()) {
       return;
     }
     try {
@@ -521,44 +599,13 @@ export class MapEditorScreen extends UIComponent {
     }
   }
 
-  private pickAndImport(): Promise<CustomMapDocument | null> {
-    return new Promise((resolve, reject) => {
-      if (typeof document === 'undefined') {
-        resolve(null);
-        return;
-      }
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'application/json,.json';
-      input.style.display = 'none';
-      input.addEventListener('change', () => {
-        const file = input.files?.[0];
-        document.body.removeChild(input);
-        if (!file) {
-          resolve(null);
-          return;
-        }
-        file
-          .text()
-          .then(text => {
-            try {
-              resolve(customMapStore.importFromJson(text, { newId: true }));
-            } catch (err) {
-              reject(err);
-            }
-          })
-          .catch(reject);
-      });
-      document.body.appendChild(input);
-      input.click();
-    });
+  private async pickAndImport(): Promise<CustomMapDocument | null> {
+    const text = await pickJsonFileText();
+    return text === null ? null : customMapStore.importFromJson(text, { newId: true });
   }
 
   private playDoc(): void {
-    const result = validateCustomMap(this.doc);
-    if (!result.valid) {
-      this.statusMessage = `Fix: ${result.errors[0]}`;
-      this.refreshView();
+    if (!this.validateOrReport()) {
       return;
     }
     try {

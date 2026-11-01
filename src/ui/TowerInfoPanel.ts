@@ -4,6 +4,7 @@ import type { EconomyState } from '../managers/EconomyState';
 import { TowerManager } from '../managers/TowerManager';
 import type { Tower } from '../objects/Tower';
 import { MetalUI } from './theme/MetalUI';
+import { buildStandardPreview, previewStat } from './towerUpgradePreview';
 import { UIComponent } from './UIComponent';
 
 export class TowerInfoPanel extends UIComponent {
@@ -14,6 +15,7 @@ export class TowerInfoPanel extends UIComponent {
   private sellButton!: Container & { labelText: Text; frame: Graphics };
   private infoText!: Text;
   private statsText!: Text;
+  private previewText!: Text;
   private onUpgradeCallback: (() => void) | null = null;
   private onSellCallback: (() => void) | null = null;
 
@@ -49,7 +51,7 @@ export class TowerInfoPanel extends UIComponent {
 
     const titleBar = MetalUI.createTitleBar(
       width - 16,
-      36,
+      48,
       'TOWER OPS',
       'UNIT STATUS',
       UI_COLORS.WARNING
@@ -68,14 +70,20 @@ export class TowerInfoPanel extends UIComponent {
         wordWrapWidth: width - 28,
       },
     });
-    this.infoText.position.set(14, 56);
+    this.infoText.position.set(14, 66);
     this.addChild(this.infoText);
 
     this.statsText = MetalUI.createMonoText('', 12, UI_COLORS.TEXT_DIM);
     this.statsText.style.wordWrap = true;
     this.statsText.style.wordWrapWidth = width - 28;
-    this.statsText.position.set(14, 100);
+    this.statsText.position.set(14, 110);
     this.addChild(this.statsText);
+
+    // Right-aligned "→ next" column showing what an upgrade would change
+    this.previewText = MetalUI.createMonoText('', 12, UI_COLORS.READY);
+    this.previewText.anchor.set(1, 0);
+    this.previewText.position.set(width - 14, 110);
+    this.addChild(this.previewText);
 
     this.upgradeButton = MetalUI.createMetalButton({
       label: 'UPGRADE',
@@ -141,6 +149,8 @@ export class TowerInfoPanel extends UIComponent {
       }
     }
 
+    this.updatePreview(type, level, { damage, range, fireRate });
+
     const upgradeCost = this.economyState
       ? this.economyState.getUpgradeCost(this.selectedTower)
       : this.towerManager.calculateUpgradeCost(type, level);
@@ -174,6 +184,40 @@ export class TowerInfoPanel extends UIComponent {
     const sellNext = `SELL $${sellValue}`;
     if (this.sellButton.labelText.text !== sellNext) {
       this.sellButton.labelText.text = sellNext;
+    }
+  }
+
+  /** Fill the "→ next" column from the stats the tower would have one level up. */
+  private updatePreview(
+    type: string,
+    level: number,
+    current: { damage: number; range: number; fireRate: number }
+  ): void {
+    let lines: string[] = [];
+    if (this.selectedTower?.canUpgrade()) {
+      const next = {
+        damage: this.towerManager.calculateTowerDamage(type, level + 1),
+        range: this.towerManager.calculateTowerRange(type, level + 1),
+        fireRate: this.towerManager.calculateTowerFireRate(type, level + 1),
+      };
+      if (type === 'Sludge') {
+        // Same rows as the Sludge stats block: SLOW, POOL, RNG, RATE, HP
+        const slow = (lvl: number): number => Math.round((0.1 + (lvl - 1) * 0.075) * 100);
+        const pool = (lvl: number): number => 35 + (lvl - 1) * 3;
+        lines = [
+          previewStat(slow(level), slow(level + 1), '%'),
+          previewStat(pool(level), pool(level + 1), 'px'),
+          previewStat(current.range, next.range),
+          previewStat(current.fireRate, next.fireRate, '/s'),
+          '',
+        ];
+      } else {
+        lines = buildStandardPreview(current, next);
+      }
+    }
+    const text = lines.join('\n');
+    if (this.previewText.text !== text) {
+      this.previewText.text = text;
     }
   }
 

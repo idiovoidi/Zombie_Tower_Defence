@@ -1,5 +1,6 @@
 import type { Graphics } from 'pixi.js';
 import { COLORS, FOG } from '../../config/visualConstants';
+import { createSeededRandom } from '../../utils/seededRandom';
 
 type FogLayer = 'deep' | 'mid' | 'upper';
 
@@ -264,15 +265,4 @@ export class FogRenderer {
   public isInitialized(): boolean {
     return this.fogParticles.length > 0;
   }
-}
-
-function createSeededRandom(seed: number): () => number {
-  let s = seed % 2147483647;
-  if (s <= 0) {
-    s += 2147483646;
-  }
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
 }

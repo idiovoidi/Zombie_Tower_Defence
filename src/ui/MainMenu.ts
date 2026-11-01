@@ -1,4 +1,4 @@
-import { Container, Text } from 'pixi.js';
+import { Text } from 'pixi.js';
 import { GameConfig } from '../config/gameConfig';
 import { UI_COLORS, UI_FONTS, UI_LAYOUT } from '../config/uiTheme';
 import { MetalUI } from './theme/MetalUI';
@@ -21,28 +21,17 @@ export class MainMenu extends UIComponent {
     const overlay = MetalUI.createOverlay(w, h, 0.55);
     this.addChild(overlay);
 
-    const panel = new Container();
-    panel.position.set((w - panelW) / 2, (h - panelH) / 2 - 20);
-    this.addChild(panel);
-
-    const metal = MetalUI.createMetalPanel({
+    const panel = MetalUI.createMenuPanel({
+      screenWidth: w,
+      screenHeight: h,
       width: panelW,
       height: panelH,
-      cautionTop: true,
-      cautionBottom: true,
-      rivets: true,
+      offsetY: -20,
+      title: 'Z-TD',
+      subtitle: 'SURVIVOR COMMAND',
+      titleBarY: 24,
     });
-    panel.addChild(metal);
-
-    const titleBar = MetalUI.createTitleBar(
-      panelW - 40,
-      48,
-      'Z-TD',
-      'SURVIVOR COMMAND',
-      UI_COLORS.ALERT
-    );
-    titleBar.position.set(20, 24);
-    panel.addChild(titleBar);
+    this.addChild(panel);
 
     const headline = MetalUI.createStencilText('ZOMBIE TOWER DEFENSE', {
       fontSize: 28,

@@ -5,9 +5,9 @@
  * Upgrade scaling and AoE extras are defined here so L1 purchase == authored base stats.
  *
  * Roles (range bands):
- *   Point (100–120): Shotgun, Flame, Sludge
- *   Mid   (130–150): MachineGun, Grenade, Tesla
- *   Long  (~350):    Sniper
+ *   Point (150–165): Shotgun, Flame, Sludge
+ *   Mid   (200–220): MachineGun, Grenade, Tesla
+ *   Long  (~525):    Sniper
  *
  * Economy: kill reward ≈ ~1/50 of a mid-tier tower cost for a basic zombie,
  * so early waves fund placement without snowballing into free max upgrades.

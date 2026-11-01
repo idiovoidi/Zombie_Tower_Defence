@@ -1,12 +1,19 @@
 import { Container, Graphics } from 'pixi.js';
 import type { LimbFlags, LimbId } from '../../components/LimbState';
 import { EffectCleanupManager } from '../../utils/EffectCleanupManager';
+import { createHumanoidShadow, type HumanoidPartOptions } from './HumanoidPartBuilder';
+import { applyHumanoidPose } from './rig/applyHumanoidPose';
+import { assembleHumanoidRig, createHumanoidRig, type HumanoidRigParts } from './rig/HumanoidRig';
+import { computeHumanoidRigLayout } from './rig/humanoidRigLayout';
 import {
   calculateDeathImpulses,
   createRagdollConfig,
+  createRagdollStyle,
   getDeathBloodConfig,
   getDetachableBones,
 } from './RagdollConfig';
+import { multiplyTint } from '../lighting/zombieLighting';
+import { RagdollGore } from './RagdollGore';
 import { RagdollSkeleton } from './RagdollSkeleton';
 import { ZombieAnimator } from './ZombieAnimator';
 import { ParticleType, ZombieParticleSystem } from './ZombieParticleSystem';
@@ -65,20 +72,27 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
   private isInRagdollDeath = false;
   private ragdollGraphics: Graphics | null = null;
   private ragdollAlpha = 1;
+  private ragdollGore: RagdollGore | null = null;
+  private ragdollGroundY = 18;
+  /** Final resting pose of the ragdoll, handed to the corpse system once it settles. */
+  private restingCorpse: Graphics | null = null;
 
   // Track last known zombie type for ragdoll config
   private zombieTypeName = 'Basic';
 
   // Common skeletal parts (shared across all zombie renderers)
   protected shadowPart!: Graphics;
-  protected leftLegPart!: Graphics;
-  protected rightLegPart!: Graphics;
   protected torsoPart!: Graphics;
   protected headPart!: Graphics;
-  protected leftArmPart!: Graphics;
-  protected rightArmPart!: Graphics;
   protected woundsPart!: Graphics;
+  /** Articulated skeleton shared by every zombie type (built in buildHumanoidParts). */
+  protected rig!: HumanoidRigParts;
   protected lastHealthPercent = 1.0;
+
+  // Tint = base (health / burning / phase colour) x light cast (nearby fire, explosions, arcs)
+  private baseTint = 0xffffff;
+  private lightCast = 0xffffff;
+  private isFlashing = false;
   private currentLimbs: LimbFlags = {
     leftArm: true,
     rightArm: true,
@@ -137,8 +151,7 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
       this.currentLimbs = state.limbs;
     }
 
-    // Apply skeletal animation with subclass-provided offsets
-    this.applySkeletalAnimation(anim, this.getAnimationOffsets());
+    applyHumanoidPose(this.rig, anim.joints, anim.bodyBob);
     this.applyLimbVisibility(this.currentLimbs);
 
     // Update wounds if health changed significantly
@@ -159,22 +172,6 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
       container.addChild(this.container);
     }
   }
-
-  /**
-   * Subclasses provide their animation offsets.
-   */
-  protected abstract getAnimationOffsets(): {
-    leftLegX: number;
-    leftLegY: number;
-    rightLegX: number;
-    rightLegY: number;
-    torsoY: number;
-    leftArmX: number;
-    leftArmY: number;
-    rightArmX: number;
-    rightArmY: number;
-    headY: number;
-  };
 
   /**
    * Subclasses implement wound update logic.
@@ -213,6 +210,36 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
    */
   protected abstract initParts(): void;
 
+  /**
+   * Build and assign the standard humanoid part set (shadow, legs, torso, head, arms).
+   * Callers may tweak parts afterwards, then must call finishInitParts().
+   */
+  protected buildHumanoidParts(
+    palette: HumanoidPartOptions,
+    shadow?: { y?: number; size?: number }
+  ): void {
+    const scale = palette.scale ?? 1;
+    const groundY = shadow?.y ?? 15 * scale;
+    const layout = computeHumanoidRigLayout(palette, groundY);
+    const rig = createHumanoidRig(palette, layout);
+
+    this.rig = rig;
+    this.shadowPart = createHumanoidShadow(groundY, shadow?.size ?? 8 * scale);
+    // Parts that subclasses may still decorate (Stealth draws an aura on the head)
+    this.torsoPart = rig.torso;
+    this.headPart = rig.head;
+  }
+
+  /**
+   * Y of the head centre in the wounds layer's space (origin = torso centre), for effects that
+   * mark the head. Falls back to the legacy value when there is no rig.
+   */
+  protected headCenterInWoundsSpace(): number {
+    const l = this.rig.layout;
+    const headCenterTorsoSpace = l.neckTopY + 0.6 * l.scale - l.headPivotDrop;
+    return headCenterTorsoSpace + l.torsoH / 2;
+  }
+
   /** Shared tail for initParts — creates wounds layer and registers skeletal parts. */
   protected finishInitParts(): void {
     this.woundsPart = new Graphics();
@@ -246,65 +273,9 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
    */
   protected addPartsToContainer(): void {
     this.container.addChild(this.shadowPart);
-    this.container.addChild(this.leftLegPart);
-    this.container.addChild(this.rightLegPart);
-    this.container.addChild(this.leftArmPart);
-    this.container.addChild(this.torsoPart);
-    this.container.addChild(this.woundsPart);
-    this.container.addChild(this.rightArmPart);
-    this.container.addChild(this.headPart);
+    assembleHumanoidRig(this.rig, this.woundsPart);
+    this.container.addChild(this.rig.body);
     this.container.addChild(this.particles.getGraphics());
-  }
-
-  /**
-   * Apply common render logic for skeletal parts.
-   * This is shared across all zombie renderers with customizable offsets.
-   */
-  protected applySkeletalAnimation(
-    anim: {
-      leftLegOffset: number;
-      rightLegOffset: number;
-      bodyBob: number;
-      leftArmAngle: number;
-      rightArmAngle: number;
-      headSway: number;
-      headTilt?: number;
-      limbSwing?: number;
-    },
-    offsets: {
-      leftLegX: number;
-      leftLegY: number;
-      rightLegX: number;
-      rightLegY: number;
-      torsoY: number;
-      leftArmX: number;
-      leftArmY: number;
-      rightArmX: number;
-      rightArmY: number;
-      headY: number;
-    }
-  ): void {
-    this.leftLegPart.position.set(offsets.leftLegX + anim.leftLegOffset, offsets.leftLegY);
-    this.rightLegPart.position.set(offsets.rightLegX + anim.rightLegOffset, offsets.rightLegY);
-
-    const torsoY = anim.bodyBob + offsets.torsoY;
-    // Light torso lean from limb swing so walk reads less stiff
-    const torsoLean = (anim.limbSwing ?? 0) * 0.08;
-    this.torsoPart.position.set(0, torsoY);
-    this.torsoPart.rotation = torsoLean;
-    this.woundsPart.position.set(0, torsoY);
-    this.woundsPart.rotation = torsoLean;
-
-    this.leftArmPart.position.set(offsets.leftArmX, torsoY + offsets.leftArmY);
-    this.leftArmPart.rotation = anim.leftArmAngle - Math.PI / 2;
-    this.leftArmPart.alpha = 0.7;
-
-    this.rightArmPart.position.set(offsets.rightArmX, torsoY + offsets.rightArmY);
-    this.rightArmPart.rotation = anim.rightArmAngle - Math.PI / 2;
-    this.rightArmPart.alpha = 1.0;
-
-    this.headPart.position.set(anim.headSway, torsoY + offsets.headY);
-    this.headPart.rotation = anim.headTilt ?? 0;
   }
 
   /** Hide detached limbs; keep parts present for pool reuse. */
@@ -312,10 +283,10 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     if (!this.isInitialized) {
       return;
     }
-    this.leftArmPart.visible = limbs.leftArm;
-    this.rightArmPart.visible = limbs.rightArm;
-    this.leftLegPart.visible = limbs.leftLeg;
-    this.rightLegPart.visible = limbs.rightLeg;
+    this.rig.leftArm.root.visible = limbs.leftArm;
+    this.rig.rightArm.root.visible = limbs.rightArm;
+    this.rig.leftLeg.root.visible = limbs.leftLeg;
+    this.rig.rightLeg.root.visible = limbs.rightLeg;
   }
 
   update(deltaTime: number, state: ZombieRenderState): void {
@@ -337,30 +308,23 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     if (this.isInRagdollDeath && this.ragdoll) {
       this.ragdoll.update(deltaTime);
 
-      // Render ragdoll onto its dedicated graphics
+      // Render ragdoll onto its dedicated graphics: blood on the ground first, then the body
       if (this.ragdollGraphics && !this.ragdollGraphics.destroyed) {
         this.ragdollGraphics.clear();
-
-        // Fade alpha as ragdoll settles
-        if (this.ragdoll.isSettled()) {
-          this.ragdollAlpha = Math.max(0, this.ragdollAlpha - deltaTime / 2000);
-        }
-
-        this.ragdoll.render(this.ragdollGraphics, this.ragdollAlpha);
+        this.drawRagdollFrame(this.ragdollGraphics, deltaTime);
         this.particles.render(); // Note: ZombieParticleSystem now clears its own graphics
       }
     }
   }
 
   showDamageEffect(damageType: string, _amount: number): void {
-    const originalTint = this.container.tint;
+    this.isFlashing = true;
     this.container.tint = this.DAMAGE_FLASH_TINT;
     const timeout = EffectCleanupManager.registerTimeout(
       setTimeout(() => {
         EffectCleanupManager.clearTimeout(timeout);
-        if (!this.container.destroyed) {
-          this.container.tint = originalTint;
-        }
+        this.isFlashing = false;
+        this.applyComposedTint();
       }, 100)
     );
 
@@ -458,12 +422,10 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
 
     // Detach bones for extreme deaths + any limbs already lost while alive
     const detachable = new Set(getDetachableBones(killer));
-    if (!this.currentLimbs.leftArm) detachable.add('arm_l');
-    if (!this.currentLimbs.rightArm) detachable.add('arm_r');
-    if (!this.currentLimbs.leftLeg) detachable.add('leg_l');
-    if (!this.currentLimbs.rightLeg) detachable.add('leg_r');
     for (const boneName of detachable) {
-      this.ragdoll.detachBone(boneName);
+      if (!this.isLostLimb(boneName)) {
+        this.ragdoll.detachBone(boneName);
+      }
     }
 
     // Add blood emission points
@@ -471,6 +433,36 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     for (const bp of bloodConfig) {
       this.ragdoll.addBloodEmitPoint(bp.boneName, bp.boneT, bp.rate, bp.duration);
     }
+    // Torn-off parts spurt from both the stump and the severed end
+    let bloodAmount = bloodConfig.reduce((sum, bp) => sum + (bp.rate * bp.duration) / 1000, 0);
+    for (const boneName of detachable) {
+      if (this.isLostLimb(boneName)) continue;
+      const tornFromHead = boneName === 'head';
+      this.ragdoll.addBloodEmitPoint(boneName, 0, 18, 900);
+      this.ragdoll.addBloodEmitPoint(
+        'torso',
+        tornFromHead ? 0 : boneName.startsWith('leg') ? 1 : 0.1,
+        26,
+        1100
+      );
+      bloodAmount += 40;
+    }
+
+    // Killer-specific wounds, tint and blood colour; lost limbs stay missing
+    const style = createRagdollStyle(this.zombieTypeName, killer);
+    this.ragdoll.setStyle(style);
+    for (const boneName of ['arm_l', 'arm_r', 'leg_l', 'leg_r']) {
+      if (this.isLostLimb(boneName)) {
+        this.ragdoll.removeLimb(boneName);
+      }
+    }
+    this.ragdollGroundY = config.groundY;
+    this.ragdollGore = new RagdollGore(
+      style.blood ?? 0x7a0a0a,
+      config.bones[0].length,
+      bloodAmount
+    );
+    this.ragdoll.onGroundHit = (x, y, speed) => this.ragdollGore?.addSplat(x, y, speed);
 
     // Wire ragdoll blood emission to particle system
     this.ragdoll.onBloodEmit = (x, y, vx, vy) => {
@@ -536,6 +528,7 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
         if (!this.ragdoll || this.ragdoll.isSettled()) {
           // Give a brief fade-out period after settlement
           setTimeout(() => {
+            this.captureRestingCorpse();
             this.isInRagdollDeath = false;
             if (this.ragdollGraphics && !this.ragdollGraphics.destroyed) {
               this.ragdollGraphics.destroy();
@@ -550,6 +543,60 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
       };
       this.deathAnimationFrame = requestAnimationFrame(checkDone);
     });
+  }
+
+  private isLostLimb(boneName: string): boolean {
+    switch (boneName) {
+      case 'arm_l':
+        return !this.currentLimbs.leftArm;
+      case 'arm_r':
+        return !this.currentLimbs.rightArm;
+      case 'leg_l':
+        return !this.currentLimbs.leftLeg;
+      case 'leg_r':
+        return !this.currentLimbs.rightLeg;
+      default:
+        return false;
+    }
+  }
+
+  private captureRestingCorpse(): void {
+    if (!this.ragdoll) {
+      return;
+    }
+    const g = new Graphics();
+    this.ragdollGore?.draw(g, 1);
+    this.ragdoll.render(g, 1);
+    this.restingCorpse = g;
+  }
+
+  private drawRagdollFrame(g: Graphics, deltaTime: number): void {
+    if (!this.ragdoll) {
+      return;
+    }
+    this.ragdollGore?.update(
+      deltaTime,
+      this.ragdoll.getCenterOfMass().x,
+      this.ragdollGroundY,
+      this.ragdoll.isSettled()
+    );
+    this.ragdollGore?.draw(g, this.ragdollAlpha);
+    this.ragdoll.render(g, this.ragdollAlpha);
+  }
+
+  /** Renderers with their own death effect (dissolve, flicker) opt out of leaving a ragdoll corpse. */
+  public hasRagdollCorpse(): boolean {
+    return true;
+  }
+
+  /**
+   * Take the settled ragdoll as a static drawing (blood pool + body) for the corpse system.
+   * Returns null if the renderer had no ragdoll to hand over. Ownership passes to the caller.
+   */
+  public takeRagdollCorpse(): Graphics | null {
+    const corpse = this.restingCorpse;
+    this.restingCorpse = null;
+    return corpse;
   }
 
   /**
@@ -574,7 +621,9 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     }
     // Reset container transform and visibility
     this.container.alpha = 1;
-    this.container.tint = 0xffffff;
+    this.lightCast = 0xffffff;
+    this.isFlashing = false;
+    this.setTint(0xffffff);
     this.container.position.set(0, 0);
     this.container.rotation = 0;
     this.container.scale.set(1, 1);
@@ -599,11 +648,16 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     // Clean up ragdoll state
     this.isInRagdollDeath = false;
     this.ragdoll = null;
+    this.ragdollGore = null;
     this.ragdollAlpha = 1;
     if (this.ragdollGraphics && !this.ragdollGraphics.destroyed) {
       this.ragdollGraphics.destroy();
       this.ragdollGraphics = null;
     }
+    if (this.restingCorpse && !this.restingCorpse.destroyed) {
+      this.restingCorpse.destroy();
+    }
+    this.restingCorpse = null;
   }
 
   destroy(): void {
@@ -634,7 +688,7 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     this.burnParticleTimer = 0;
 
     // Apply orange tint to indicate burning
-    this.container.tint = 0xff6600;
+    this.setTint(0xff6600);
 
     // Emit initial burst of fire particles
     this.particles.emit(ParticleType.FIRE, 0, -5, {
@@ -665,7 +719,7 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
 
     // Reset tint if not already dead
     if (!this.container.destroyed && this.container.alpha > 0.5) {
-      this.container.tint = 0xffffff;
+      this.setTint(0xffffff);
     }
   }
 
@@ -722,17 +776,43 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
   }
 
   /**
+   * Set the zombie's base tint (health greying, burning orange, phase colours). The nearby-light
+   * cast is multiplied in, so lighting never fights the other tint sources.
+   */
+  protected setTint(color: number): void {
+    this.baseTint = color;
+    this.applyComposedTint();
+  }
+
+  /** Colour cast from nearby point lights (0xffffff = none). Cheap: only touches the tint on change. */
+  setLightCast(color: number): void {
+    if (color === this.lightCast) {
+      return;
+    }
+    this.lightCast = color;
+    this.applyComposedTint();
+  }
+
+  private applyComposedTint(): void {
+    // A damage flash owns the tint for its 100ms; the composed tint is restored afterwards
+    if (this.isFlashing || this.container.destroyed) {
+      return;
+    }
+    this.container.tint = multiplyTint(this.baseTint, this.lightCast);
+  }
+
+  /**
    * Apply standard grey tint based on health percentage.
    */
   protected applyHealthTint(healthPercent: number): void {
     if (healthPercent < 0.25) {
-      this.container.tint = 0x888888;
+      this.setTint(0x888888);
     } else if (healthPercent < 0.5) {
-      this.container.tint = 0xaaaaaa;
+      this.setTint(0xaaaaaa);
     } else if (healthPercent < 0.75) {
-      this.container.tint = 0xcccccc;
+      this.setTint(0xcccccc);
     } else {
-      this.container.tint = 0xffffff;
+      this.setTint(0xffffff);
     }
   }
 }

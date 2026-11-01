@@ -15,10 +15,51 @@ import {
 import { GameManager } from './managers/GameManager';
 import { InputManager } from './managers/InputManager';
 import { TimeControlManager } from './managers/TimeControlManager';
+import { LIGHTING } from './config/lightingConstants';
+import { parseDayNightSeconds } from './renderers/lighting/dayNightConfig';
+import { lightingManager } from './renderers/lighting/LightingManager';
 import { DebugUtils } from './utils/DebugUtils';
+
+function isDevToolsEnabled(): boolean {
+  if (import.meta.env.DEV) {
+    return true;
+  }
+  try {
+    return new URLSearchParams(window.location.search).get('dev') === '1';
+  } catch {
+    return false;
+  }
+}
+
+function isSurfaceShadingRequested(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get('shading') !== '0';
+  } catch {
+    return true;
+  }
+}
+
+function requestedDayNightSeconds(): number {
+  const fallback = LIGHTING.DAY_NIGHT.DEFAULT_CYCLE_SECONDS;
+  try {
+    return parseDayNightSeconds(window.location.search, fallback);
+  } catch {
+    return fallback;
+  }
+}
 
 (async () => {
   applyUrlDevOverrides();
+
+  // GPU surface shading on tower bases (needs WebGL); ?shading=0 turns it off
+  lightingManager.setSurfaceShadingEnabled(isSurfaceShadingRequested());
+
+  // Day/night cycle (on by default). Each run restarts the day (see GameManager).
+  const dayNightSeconds = requestedDayNightSeconds();
+  if (dayNightSeconds > 0) {
+    lightingManager.setDayNightCycle(dayNightSeconds);
+    lightingManager.restartDay();
+  }
 
   DebugUtils.setEnabled(DevConfig.DEBUG.ENABLED);
   DebugUtils.setLogLevel(DevConfig.DEBUG.LOG_LEVEL as 'debug' | 'info' | 'warn' | 'error');
@@ -64,18 +105,27 @@ import { DebugUtils } from './utils/DebugUtils';
     setupCampClickCallback(gameManager, ui.campUpgradePanel);
     syncGameHud(gameManager, ui);
     refreshPathOverlay();
+  } else {
+    // Apply the main-menu visibility set (hides HUD, shop, level select, etc.)
+    ui.uiManager.setState(GameConfig.GAME_STATES.MAIN_MENU);
+    gameManager.showMenuBackdrop();
+    refreshPathOverlay();
   }
 
   startGameLoop(app, gameManager, timeControlManager, ui, pixelArtRenderer, {
     updateRangeOverlay: refreshRangeOverlay,
     updateCamera: deltaMs => inputManager.updateCamera(deltaMs),
   });
-  await registerDebugConsoleAPIs(gameManager, timeControlManager);
-  registerDevApi({
-    gameManager,
-    timeControlManager,
-    pathOverlay,
-    rangeOverlay,
-    refreshPathOverlay,
-  });
+  // Cheat/debug consoles (window.dev, window.timeControl, ...): always in dev builds, and in a
+  // production build only when asked for with ?dev=1, so players cannot trivialise a win.
+  if (isDevToolsEnabled()) {
+    await registerDebugConsoleAPIs(gameManager, timeControlManager);
+    registerDevApi({
+      gameManager,
+      timeControlManager,
+      pathOverlay,
+      rangeOverlay,
+      refreshPathOverlay,
+    });
+  }
 })();

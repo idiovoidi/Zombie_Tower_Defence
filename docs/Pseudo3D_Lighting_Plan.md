@@ -1,5 +1,38 @@
 # Pseudo-3D Lighting System Design Plan
 
+> **Implementation status (current):** shipped, with one deliberate deviation.
+>
+> | Part | Status |
+> |---|---|
+> | Tower shadows | Done — `renderers/lighting/TowerShadow.ts`, driven by the shared light |
+> | Surface shading | Done, **simplified**: instead of per-type procedural normal maps, `TowerLightingFilter` estimates bevel normals from each sprite's own silhouette and brightness edges, so every tower type and upgrade level is shaded automatically with no cached textures |
+> | Shooting illumination | Done — `Tower.updateShotGlow`, ~130ms, per-type colour |
+> | Bullet glow | Done — `Projectile.drawGlow`, 6px halo, ±5% pulse, flame skipped (has its own) |
+> | Animated normals / pulsing lights | Done (see below) |
+> | Environmental lighting + day/night | Done (see below) |
+> | Dynamic light direction | Done — `LightingManager.setLightDirection(angle, elevation)`; `dev.light(angle, elevation)` in the console |
+>
+> Tuning lives in `config/lightingConstants.ts`. `?shading=0` disables the GPU shading. The shader is
+> pre-validated in a throwaway WebGL2 context, so an unsupported driver falls back to no shading
+> rather than invisible towers. **Note:** the original plan said a bloom filter already existed in the
+> codebase; it does not, and the glow here is geometry-based rather than a post-process bloom.
+> **Animated lighting (done):** the rotating gunner/barrel goes through the same filter. Because Pixi
+> filters run in screen space, the light does not turn with the sprite, so its lit/shadowed edges update
+> live as the barrel tracks targets (verified: lit edges identical at 0° and 90° rotation). Tesla
+> towers pulse a cyan light, Flame towers flicker orange, Sludge breathes green (`AMBIENT_GLOW`,
+> random phase per tower, driven by game time so it freezes when paused).
+> **Environmental lighting (done):** explosions, Tesla arcs and fire pools drop timed point lights
+> (`LightingManager.addPointLight`, capped at 24). Towers within reach get an additive glow in the
+> light's colour, shifted toward the source so it reads as directional; strength falls off
+> quadratically and fades with the light's life. `dev.pointLight(x, y)` drops one for testing.
+> **Day/night cycle (done, ON by default):** `getTimeOfDay(phase)` gives the light angle/elevation and
+> an ambient tint (dawn/dusk amber, midnight blue); the sun/moon crosses right to left so shadows and
+> shading swing across the map. One day is 600 game seconds (`DAY_NIGHT.DEFAULT_CYCLE_SECONDS`, about
+> one Level 1 run) and every run starts just after dawn. It runs on game time, so it pauses with the
+> game and runs faster at 2x/4x. `?daynight=0` turns it off, `?daynight=N` sets a custom day length,
+> and `dev.dayNight(seconds)` / `dev.timeOfDay(phase)` change it at runtime. The HUD is never tinted.
+> Not done: a settings UI for any of this, and lighting for zombies (towers only).
+
 ## Overview
 
 Implement a **pseudo-3D lighting system** that adds depth and visual richness to the 2D tower defense game through dynamic shadows, normal map-based lighting, and subtle bloom effects.

@@ -1,5 +1,6 @@
 import { type Container, Graphics } from 'pixi.js';
 import { EffectCleanupManager } from '@/utils/EffectCleanupManager';
+import { getTowerLightingFilter } from '../lighting/TowerLightingFilter';
 import type { ITowerRenderer } from './ITowerRenderer';
 
 export type BarrelRenderCallback = (graphics: Graphics, upgradeLevel: number) => void;
@@ -40,27 +41,30 @@ export abstract class BaseTowerRenderer implements ITowerRenderer {
       return;
     }
 
+    // One star per upgrade tier. Bold, outlined and set clear of the head so the level reads
+    // at normal game zoom (the base art only changes at levels 3 and 5).
     const starCount = Math.min(upgradeLevel - 1, 5);
-    const starSize = 3;
-    const spacing = 8;
+    const starSize = 5;
+    const spacing = 11;
     const startX = (-(starCount - 1) * spacing) / 2;
+    const y = -35;
 
     for (let i = 0; i < starCount; i++) {
       const x = startX + i * spacing;
-      const y = -30;
+      const waist = starSize * 0.38;
 
-      // Draw a simple star
       visual
         .moveTo(x, y - starSize)
-        .lineTo(x + starSize * 0.3, y - starSize * 0.3)
+        .lineTo(x + waist, y - waist)
         .lineTo(x + starSize, y)
-        .lineTo(x + starSize * 0.3, y + starSize * 0.3)
+        .lineTo(x + waist, y + waist)
         .lineTo(x, y + starSize)
-        .lineTo(x - starSize * 0.3, y + starSize * 0.3)
+        .lineTo(x - waist, y + waist)
         .lineTo(x - starSize, y)
-        .lineTo(x - starSize * 0.3, y - starSize * 0.3)
+        .lineTo(x - waist, y - waist)
         .lineTo(x, y - starSize)
-        .fill(0xffd700); // Gold stars
+        .fill(0xffd700)
+        .stroke({ width: 1.5, color: 0x4a3500 });
     }
   }
 
@@ -83,6 +87,14 @@ export abstract class BaseTowerRenderer implements ITowerRenderer {
     }
     const graphics = existingGraphics ?? new Graphics();
     graphics.label = label;
+    // Shade the gunner too. The filter works in screen space, so as the barrel rotates to track
+    // targets its lit/shadowed edges update live (the light does not turn with the sprite).
+    if (!existingGraphics) {
+      const lightingFilter = getTowerLightingFilter();
+      if (lightingFilter) {
+        graphics.filters = [lightingFilter];
+      }
+    }
     return graphics;
   }
 

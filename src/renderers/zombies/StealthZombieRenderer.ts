@@ -1,11 +1,4 @@
 import { playParticleDeathAnimation } from './CustomDeathAnimation';
-import {
-  createHumanoidArm,
-  createHumanoidHead,
-  createHumanoidLegs,
-  createHumanoidShadow,
-  createHumanoidTorso,
-} from './HumanoidPartBuilder';
 import { HumanoidZombieRenderer } from './HumanoidZombieRenderer';
 import { ParticleType } from './ZombieParticleSystem';
 import type { ZombieRenderState } from './ZombieRenderer';
@@ -48,16 +41,9 @@ export class StealthZombieRenderer extends HumanoidZombieRenderer {
       strokeAlpha: 0.4,
     };
 
-    this.shadowPart = createHumanoidShadow();
-    const legs = createHumanoidLegs(palette);
-    this.leftLegPart = legs.leftLeg;
-    this.rightLegPart = legs.rightLeg;
-    this.torsoPart = createHumanoidTorso(palette);
-    this.headPart = createHumanoidHead(palette);
+    this.buildHumanoidParts(palette);
     // Soft aura around head
     this.headPart.circle(0, 0, 6).fill({ color: 0x4a3a5a, alpha: 0.12 });
-    this.leftArmPart = createHumanoidArm(palette, 'left');
-    this.rightArmPart = createHumanoidArm(palette, 'right');
 
     this.finishInitParts();
   }
@@ -89,14 +75,18 @@ export class StealthZombieRenderer extends HumanoidZombieRenderer {
   ): void {
     const baseAlpha = 0.5 + Math.sin(this.fadePhase) * 0.1;
     this.shadowPart.alpha = baseAlpha * 0.3;
-    this.leftArmPart.alpha = 0.7 * baseAlpha;
-    this.rightArmPart.alpha = 1.0 * baseAlpha;
+    // Rigged limbs fade with the container (per-limb alpha would show the body through the arms)
     this.container.alpha = baseAlpha;
   }
 
   override update(deltaTime: number, state: ZombieRenderState): void {
     super.update(deltaTime, state);
     this.fadePhase += deltaTime * 0.002;
+  }
+
+  // Dissolves/flickers instead of collapsing, so the corpse system draws its own wreck
+  override hasRagdollCorpse(): boolean {
+    return false;
   }
 
   override async playDeathAnimation(_killerType?: string): Promise<void> {
