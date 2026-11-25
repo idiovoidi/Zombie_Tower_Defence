@@ -28,9 +28,9 @@
     "clean": "node scripts/safe-clean.js",
     "clean:dry-run": "node scripts/safe-clean.js --dry-run",
     "knip": "knip",
-    "eslint": "eslint src/**/*.ts",
-    "eslint:fix": "eslint src/**/*.ts --fix",
-    "quality": "biome check . && tsc --noEmit && eslint src/**/*.ts && depcruise src --config .dependency-cruiser.cjs",
+    "eslint": "eslint \"src/**/*.ts\"",
+    "eslint:fix": "eslint \"src/**/*.ts\" --fix",
+    "quality": "biome check . && tsc --noEmit && eslint \"src/**/*.ts\" && depcruise src --config .dependency-cruiser.cjs",
     "quality:full": "npm run quality && npm run knip && npm run dupcheck"
   },
   "dependencies": {
@@ -48,6 +48,7 @@
     "concurrently": "^10.0.7",
     "dependency-cruiser": "^18.9.0",
     "eslint": "^10.15.0",
+    "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-boundaries": "^7.4.5",
     "globals": "^17.14.0",
     "jscpd": "^5.4.3",
