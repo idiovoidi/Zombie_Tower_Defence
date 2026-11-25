@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "homepage": "https://idiovoidi.github.io/Zombie_Tower_Defence-OS2/Z_TD",
+  "homepage": "https://idiovoidi.github.io/Zombie_Tower_Defence/",
   "scripts": {
     "start": "npm run dev",
     "dev": "vite",

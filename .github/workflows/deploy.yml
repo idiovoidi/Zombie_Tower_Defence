@@ -2,8 +2,9 @@ name: Deploy Z-TD to GitHub Pages
 
 on:
   push:
-    branches: [main, Desktop_Dev]
-    paths: ["Z_TD/**"]
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch: # Allow manual triggering
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
@@ -12,14 +13,8 @@ permissions:
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
-  # Build job
+  # Build job (also the check that runs on pull requests)
   build:
     runs-on: ubuntu-latest
     steps:
@@ -31,30 +26,26 @@ jobs:
         with:
           node-version: "24"
           cache: "npm"
-          cache-dependency-path: "Z_TD/package-lock.json"
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
 
       - name: Install dependencies
         run: npm ci
-        working-directory: ./Z_TD
 
-      - name: Quality checks
-        run: npm run quality
-        working-directory: ./Z_TD
-
-      - name: Build with Vite
-        run: npx vite build
-        working-directory: ./Z_TD
+      - name: Quality checks and build
+        run: npm run build
 
       - name: Upload artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./Z_TD/dist
+          path: ./dist
 
   # Deployment job
   deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # Allow only one deployment at a time, without cancelling one that is in progress
+    concurrency:
+      group: "pages"
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
