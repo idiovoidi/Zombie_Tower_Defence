@@ -3,8 +3,6 @@ import { EffectCleanupManager } from '@/utils/EffectCleanupManager';
 import { getTowerLightingFilter } from '../lighting/TowerLightingFilter';
 import type { ITowerRenderer } from './ITowerRenderer';
 
-export type BarrelRenderCallback = (graphics: Graphics, upgradeLevel: number) => void;
-
 /**
  * Base class for tower renderers
  * Provides shared helper methods for all tower renderers

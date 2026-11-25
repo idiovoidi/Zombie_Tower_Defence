@@ -415,7 +415,7 @@ export function syncGameHud(gameManager: GameManager, ui: UIContext): void {
 /**
  * Subscribe HUD surfaces to economy/wave events instead of polling every frame.
  */
-export function bindGameHudEvents(gameManager: GameManager, ui: UIContext): void {
+function bindGameHudEvents(gameManager: GameManager, ui: UIContext): void {
   const eventBus = gameManager.getEventBus();
 
   const refreshMoney = (): void => {

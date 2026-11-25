@@ -5,7 +5,7 @@
 /**
  * Waypoint interface for zombie pathfinding
  */
-export interface Waypoint {
+interface Waypoint {
   x: number;
   y: number;
 }

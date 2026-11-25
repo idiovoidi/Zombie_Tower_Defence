@@ -3,22 +3,22 @@ import type { ZombieGroup } from '../managers/WaveManager';
 
 export const CUSTOM_MAP_SCHEMA_VERSION = 1;
 export const CUSTOM_MAP_DEFAULT_CELL_SIZE = 32;
-export const CUSTOM_MAP_DEFAULT_WIDTH = 1024;
-export const CUSTOM_MAP_DEFAULT_HEIGHT = 768;
+const CUSTOM_MAP_DEFAULT_WIDTH = 1024;
+const CUSTOM_MAP_DEFAULT_HEIGHT = 768;
 export const CUSTOM_MAP_MIN_WAYPOINTS = 3;
 /** First waypoint must be within this X to align with the fixed graveyard spawn. */
 export const CUSTOM_MAP_SPAWN_MAX_X = 96;
 
 export type CustomMapDifficulty = 'Easy' | 'Normal' | 'Hard' | 'Nightmare';
 
-export interface CustomMapPayload {
+interface CustomMapPayload {
   width: number;
   height: number;
   cellSize: number;
   waypoints: Waypoint[];
 }
 
-export interface CustomLevelPayload {
+interface CustomLevelPayload {
   startingMoney: number;
   startingLives: number;
   difficulty: CustomMapDifficulty;

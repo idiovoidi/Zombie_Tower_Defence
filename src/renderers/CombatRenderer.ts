@@ -46,13 +46,6 @@ export interface ShootingEffectEventData {
   upgradeLevel: number;
 }
 
-export interface TowerRotationEventData {
-  tower: Tower;
-  targetX: number;
-  targetY: number;
-  rotation: number;
-}
-
 export interface TowerDamagedEventData {
   tower: Tower;
   damage: number;

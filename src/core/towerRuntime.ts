@@ -27,8 +27,3 @@ export function getTowerRuntime(): TowerRuntimeDeps {
   }
   return runtime;
 }
-
-/** Test helper — clears configured deps between suites. */
-export function resetTowerRuntime(): void {
-  runtime = null;
-}

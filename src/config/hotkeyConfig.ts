@@ -22,7 +22,7 @@ export interface TowerHotkey extends HotkeyBinding {
  * Tower placement hotkeys
  * Maps keyboard keys to tower types for quick placement
  */
-export const TOWER_HOTKEYS: Record<string, TowerHotkey> = {
+const TOWER_HOTKEYS: Record<string, TowerHotkey> = {
   '1': {
     key: '1',
     towerType: GameConfig.TOWER_TYPES.MACHINE_GUN,
@@ -94,78 +94,6 @@ export const GAME_HOTKEYS: Record<string, HotkeyBinding> = {
 };
 
 /**
- * UI control hotkeys
- */
-export const UI_HOTKEYS: Record<string, HotkeyBinding> = {
-  TAB: {
-    key: 'Tab',
-    description: 'Toggle Tower Shop',
-    category: 'ui',
-  },
-  I: {
-    key: 'I',
-    description: 'Toggle Tower Info',
-    category: 'ui',
-  },
-  U: {
-    key: 'U',
-    description: 'Toggle Upgrade Panel',
-    category: 'ui',
-  },
-};
-
-/**
- * Debug hotkeys (only active in debug mode)
- */
-export const DEBUG_HOTKEYS: Record<string, HotkeyBinding> = {
-  M: {
-    key: 'M',
-    description: 'Add money (Shift for more)',
-    category: 'debug',
-  },
-  L: {
-    key: 'L',
-    description: 'Add lives (Shift for more)',
-    category: 'debug',
-  },
-  N: {
-    key: 'N',
-    description: 'Start next wave',
-    category: 'debug',
-  },
-  K: {
-    key: 'K',
-    description: 'Kill all zombies',
-    category: 'debug',
-  },
-  G: {
-    key: 'G',
-    description: 'Toggle god mode',
-    category: 'debug',
-  },
-  R: {
-    key: 'R',
-    description: 'Toggle tower ranges overlay',
-    category: 'debug',
-  },
-  W: {
-    key: 'W',
-    description: 'Toggle path waypoints overlay',
-    category: 'debug',
-  },
-  B: {
-    key: 'B',
-    description: 'Toggle zombie health bars',
-    category: 'debug',
-  },
-  H: {
-    key: 'H',
-    description: 'Print debug help',
-    category: 'debug',
-  },
-};
-
-/**
  * Get tower type from key press
  * @param key The key that was pressed
  * @returns Tower type or null if no binding exists
@@ -173,13 +101,6 @@ export const DEBUG_HOTKEYS: Record<string, HotkeyBinding> = {
 export function getTowerTypeFromKey(key: string): string | null {
   const hotkey = TOWER_HOTKEYS[key];
   return hotkey ? hotkey.towerType : null;
-}
-
-/**
- * Get all tower hotkeys as an array for display
- */
-export function getTowerHotkeyList(): TowerHotkey[] {
-  return Object.values(TOWER_HOTKEYS);
 }
 
 /**
@@ -194,32 +115,6 @@ export function getHotkeyForTowerType(towerType: string): TowerHotkey | null {
     }
   }
   return null;
-}
-
-/**
- * Check if a key is bound to a tower
- * @param key The key to check
- * @returns True if key is bound to a tower
- */
-export function isTowerHotkey(key: string): boolean {
-  return getTowerTypeFromKey(key) !== null;
-}
-
-/**
- * Get all hotkeys grouped by category
- */
-export function getAllHotkeys(): {
-  tower: TowerHotkey[];
-  game: HotkeyBinding[];
-  ui: HotkeyBinding[];
-  debug: HotkeyBinding[];
-} {
-  return {
-    tower: Object.values(TOWER_HOTKEYS),
-    game: Object.values(GAME_HOTKEYS),
-    ui: Object.values(UI_HOTKEYS),
-    debug: Object.values(DEBUG_HOTKEYS),
-  };
 }
 
 /**

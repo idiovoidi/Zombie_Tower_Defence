@@ -1,4 +1,4 @@
-export type AnnouncementTone = 'normal' | 'elite' | 'clear';
+type AnnouncementTone = 'normal' | 'elite' | 'clear';
 
 export interface WaveAnnouncement {
   title: string;

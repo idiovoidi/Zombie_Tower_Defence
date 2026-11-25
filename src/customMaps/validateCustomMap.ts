@@ -2,7 +2,6 @@
 // biome-ignore-all lint/complexity/useLiteralKeys: Record<string, unknown> requires bracket access under tsc
 
 import { GameConfig } from '../config/gameConfig';
-import type { ZombieGroup } from '../managers/WaveManager';
 import {
   CUSTOM_MAP_MIN_WAYPOINTS,
   CUSTOM_MAP_SCHEMA_VERSION,
@@ -213,8 +212,4 @@ export function assertValidCustomMap(input: unknown): asserts input is CustomMap
   if (!result.valid) {
     throw new Error(`Invalid custom map: ${result.errors.join('; ')}`);
   }
-}
-
-export function isValidZombieGroup(group: ZombieGroup): boolean {
-  return validateZombieGroup(group, 0, 0).length === 0;
 }

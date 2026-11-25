@@ -3,7 +3,7 @@ import { createHumanoidHead, type HumanoidPartOptions } from '../HumanoidPartBui
 import type { HumanoidRigLayout } from './humanoidRigLayout';
 
 /** One two-bone limb: `root` sits on the hip/shoulder; `joint` is the knee/elbow pivot. */
-export interface RigLimb {
+interface RigLimb {
   root: Container;
   upper: Graphics;
   joint: Container;

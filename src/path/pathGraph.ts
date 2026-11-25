@@ -1,12 +1,12 @@
 import type { Waypoint } from '../managers/PathfindingManager';
 
-export interface PathNode {
+interface PathNode {
   id: string;
   x: number;
   y: number;
 }
 
-export interface PathEdge {
+interface PathEdge {
   from: string;
   to: string;
 }
@@ -175,18 +175,4 @@ export function ensurePathGraph(map: { waypoints: Waypoint[]; pathGraph?: PathGr
     return map.pathGraph;
   }
   return pathGraphFromWaypoints(map.waypoints);
-}
-
-/** Primary polyline for legacy consumers (one resolved path or waypoints). */
-export function primaryWaypoints(map: {
-  waypoints: Waypoint[];
-  pathGraph?: PathGraph;
-}): Waypoint[] {
-  if (map.waypoints.length > 0) {
-    return map.waypoints;
-  }
-  if (map.pathGraph) {
-    return resolveRandomPath(map.pathGraph, () => 0);
-  }
-  return [];
 }

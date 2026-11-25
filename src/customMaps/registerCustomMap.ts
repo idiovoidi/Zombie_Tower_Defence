@@ -89,9 +89,3 @@ export function syncCustomMapsToManagers(
     managers.levelManager.registerLevel(buildLevelData(doc, levelId, mapName), { unlock: true });
   }
 }
-
-export function clearCustomMapRegistration(docId: string, managers: CustomMapManagers): void {
-  managers.mapManager.unregisterMap(customMapKey(docId));
-  managers.levelManager.unregisterLevel(customLevelId(docId));
-  managers.waveManager.setWaveOverrides(null);
-}

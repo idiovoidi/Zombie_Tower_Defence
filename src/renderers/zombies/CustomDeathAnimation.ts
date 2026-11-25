@@ -2,7 +2,7 @@ import type { Container } from 'pixi.js';
 import type { DeathParticleConfig } from './BaseZombieRenderer';
 import type { ZombieParticleSystem } from './ZombieParticleSystem';
 
-export function emitDeathParticles(
+function emitDeathParticles(
   particles: ZombieParticleSystem,
   configs: DeathParticleConfig['particles']
 ): void {

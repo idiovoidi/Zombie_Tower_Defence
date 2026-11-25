@@ -8,7 +8,7 @@ import type { Graphics } from 'pixi.js';
 /**
  * Interface for shell casing effect objects
  */
-export interface ShellCasing {
+interface ShellCasing {
   destroyed: boolean;
   parent: unknown;
   destroy(): void;
@@ -17,7 +17,7 @@ export interface ShellCasing {
 /**
  * Interface for muzzle flash effect objects
  */
-export interface MuzzleFlash {
+interface MuzzleFlash {
   destroyed: boolean;
   parent: unknown;
   destroy(): void;

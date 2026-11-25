@@ -33,7 +33,7 @@ export interface IZombieStateProvider {
 /**
  * Minimal balance-tracking surface used by StatTracker without importing BalanceTrackingManager.
  */
-export interface BalanceTrackingReporter {
+interface BalanceTrackingReporter {
   isEnabled(): boolean;
   generateReportData(): unknown;
 }

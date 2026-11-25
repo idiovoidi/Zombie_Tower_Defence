@@ -8,7 +8,7 @@ export interface TowerCostCatalog {
 }
 
 /** Fraction of invested cost refunded on sell. */
-export const TOWER_SELL_REFUND_RATIO = 0.75;
+const TOWER_SELL_REFUND_RATIO = 0.75;
 
 /**
  * Upgrade eligibility and cost calculations.
