@@ -14,14 +14,6 @@ export class NecroTankRenderer extends BaseZombieRenderer {
   protected readonly DEATH_PARTICLES = [
     { type: ParticleType.BLOOD_SPLATTER, count: 20, velocity: 85, lifetime: 1700, size: 3.5 },
   ];
-  protected readonly DEATH_ANIM = {
-    phase1Duration: 450,
-    phase2Duration: 650,
-    phase3Duration: 950,
-    phase1MaxRotation: 0.22,
-    phase1MaxScale: 0.18,
-    phase3YDrift: 4,
-  };
 
   private readonly PRIMARY_COLOR = 0x2a1020;
   private readonly DARK = 0x120810;
@@ -45,17 +37,7 @@ export class NecroTankRenderer extends BaseZombieRenderer {
 
     this.finishInitParts();
   }
-  protected updateWounds(
-    healthPercent: number,
-    _anim: {
-      leftLegOffset: number;
-      rightLegOffset: number;
-      bodyBob: number;
-      leftArmAngle: number;
-      rightArmAngle: number;
-      headSway: number;
-    }
-  ): void {
+  protected updateWounds(healthPercent: number): void {
     this.drawWounds(this.woundsPart, healthPercent, 0, this.BLOOD_RED, 9, 14, 16, 1.8, 2.3, 0.82);
   }
 

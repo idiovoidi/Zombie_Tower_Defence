@@ -150,6 +150,25 @@ export class ZombieManager {
     this.corpseManager.update(deltaTime);
   }
 
+  /**
+   * Advance only zombies in their death animation (and the blood/corpse layer), removing those
+   * that finish. Used between waves, when the combat tick is paused but bodies are still falling.
+   */
+  public updateDyingOnly(deltaTime: number): void {
+    for (let i = this.zombies.length - 1; i >= 0; i--) {
+      const zombie = this.zombies[i];
+      if (!zombie.getIsDying()) {
+        continue;
+      }
+      zombie.update(deltaTime);
+      if (zombie.isDeathAnimationComplete()) {
+        this.removeZombie(i);
+      }
+    }
+    this.bloodParticleSystem.update(deltaTime);
+    this.corpseManager.update(deltaTime);
+  }
+
   // Spawn a single zombie
   private spawnZombie(type: string): void {
     // Get spawn position from map
@@ -322,9 +341,10 @@ export class ZombieManager {
     this.zombiesDirty = false;
   }
 
-  // Check if wave is complete (all zombies spawned and cleared)
+  // Check if wave is complete (all zombies spawned and killed or through). Zombies still in their
+  // death animation don't count: they finish falling between waves (updateDyingOnly).
   public isWaveComplete(): boolean {
-    return !this.isSpawning && this.zombies.length === 0;
+    return !this.isSpawning && this.zombies.every(z => z.getIsDying());
   }
 
   // Clear all zombies

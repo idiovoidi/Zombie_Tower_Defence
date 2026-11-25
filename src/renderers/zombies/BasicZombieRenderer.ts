@@ -1,7 +1,7 @@
-import { HumanoidZombieRenderer } from './HumanoidZombieRenderer';
+import { BaseZombieRenderer } from './BaseZombieRenderer';
 import { ParticleType } from './ZombieParticleSystem';
 
-export class BasicZombieRenderer extends HumanoidZombieRenderer {
+export class BasicZombieRenderer extends BaseZombieRenderer {
   protected readonly ANIMATOR_TYPE = 'BASIC';
   protected readonly DAMAGE_FLASH_TINT = 0xff0000;
   protected readonly DAMAGE_PARTICLES = [
@@ -10,14 +10,6 @@ export class BasicZombieRenderer extends HumanoidZombieRenderer {
   protected readonly DEATH_PARTICLES = [
     { type: ParticleType.BLOOD_SPLATTER, count: 8, velocity: 60, lifetime: 1000, size: 2.5 },
   ];
-  protected readonly DEATH_ANIM = {
-    phase1Duration: 300,
-    phase2Duration: 500,
-    phase3Duration: 700,
-    phase1MaxRotation: 0.3,
-    phase1MaxScale: 0.2,
-    phase3YDrift: 5,
-  };
 
   private readonly PRIMARY_COLOR = 0x2d5016;
   private readonly DARK_GREEN = 0x1a3010;
@@ -38,17 +30,7 @@ export class BasicZombieRenderer extends HumanoidZombieRenderer {
     this.finishInitParts();
   }
 
-  protected updateWounds(
-    healthPercent: number,
-    _anim: {
-      leftLegOffset: number;
-      rightLegOffset: number;
-      bodyBob: number;
-      leftArmAngle: number;
-      rightArmAngle: number;
-      headSway: number;
-    }
-  ): void {
+  protected updateWounds(healthPercent: number): void {
     this.updateBloodWounds(healthPercent, this.BLOOD_RED, { maxWounds: 5, alpha: 0.8 });
   }
 }

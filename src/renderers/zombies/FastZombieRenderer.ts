@@ -10,14 +10,6 @@ export class FastZombieRenderer extends BaseZombieRenderer {
   protected readonly DEATH_PARTICLES = [
     { type: ParticleType.BLOOD_SPLATTER, count: 8, velocity: 70, lifetime: 1000, size: 2.5 },
   ];
-  protected readonly DEATH_ANIM = {
-    phase1Duration: 300,
-    phase2Duration: 500,
-    phase3Duration: 700,
-    phase1MaxRotation: 0.3,
-    phase1MaxScale: 0.2,
-    phase3YDrift: 5,
-  };
 
   private readonly PRIMARY_COLOR = 0x8b4513;
   private readonly DARK_ORANGE = 0x5a2a0a;
@@ -40,17 +32,7 @@ export class FastZombieRenderer extends BaseZombieRenderer {
 
     this.finishInitParts();
   }
-  protected updateWounds(
-    healthPercent: number,
-    _anim: {
-      leftLegOffset: number;
-      rightLegOffset: number;
-      bodyBob: number;
-      leftArmAngle: number;
-      rightArmAngle: number;
-      headSway: number;
-    }
-  ): void {
+  protected updateWounds(healthPercent: number): void {
     this.drawWounds(this.woundsPart, healthPercent, 0, this.BLOOD_RED, 5, 6, 8, 1, 1.5, 0.8);
   }
 }

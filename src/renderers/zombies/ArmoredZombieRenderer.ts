@@ -1,10 +1,10 @@
 import { Graphics } from 'pixi.js';
+import { BaseZombieRenderer } from './BaseZombieRenderer';
 import { GlowEffect } from './components/ZombieEffects';
-import { HumanoidZombieRenderer } from './HumanoidZombieRenderer';
 import type { HumanoidRigParts } from './rig/HumanoidRig';
 import { ParticleType } from './ZombieParticleSystem';
 
-export class ArmoredZombieRenderer extends HumanoidZombieRenderer {
+export class ArmoredZombieRenderer extends BaseZombieRenderer {
   protected readonly ANIMATOR_TYPE = 'ARMORED';
   protected readonly DAMAGE_FLASH_TINT = 0xffffff;
   protected readonly DAMAGE_PARTICLES = [
@@ -14,14 +14,6 @@ export class ArmoredZombieRenderer extends HumanoidZombieRenderer {
     { type: ParticleType.METAL_SHARDS, count: 6, velocity: 55, lifetime: 1000, size: 2 },
     { type: ParticleType.BLOOD_SPLATTER, count: 5, velocity: 50, lifetime: 900, size: 2.5 },
   ];
-  protected readonly DEATH_ANIM = {
-    phase1Duration: 300,
-    phase2Duration: 500,
-    phase3Duration: 700,
-    phase1MaxRotation: 0.3,
-    phase1MaxScale: 0.2,
-    phase3YDrift: 5,
-  };
 
   private readonly PRIMARY_COLOR = 0x4a4a4a;
   private readonly DARK_GRAY = 0x2a2a2a;
@@ -111,17 +103,7 @@ export class ArmoredZombieRenderer extends HumanoidZombieRenderer {
     }
   }
 
-  protected updateWounds(
-    healthPercent: number,
-    _anim: {
-      leftLegOffset: number;
-      rightLegOffset: number;
-      bodyBob: number;
-      leftArmAngle: number;
-      rightArmAngle: number;
-      headSway: number;
-    }
-  ): void {
+  protected updateWounds(healthPercent: number): void {
     this.woundsPart.clear();
     this.drawWounds(this.woundsPart, healthPercent, 0, this.BLOOD_RED);
     if (healthPercent < 0.7) {

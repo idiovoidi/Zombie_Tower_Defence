@@ -164,7 +164,7 @@ export class LevelState {
    * @param deltaTime - Time since last frame
    * @param isPlaying - Whether the game is currently playing
    */
-  public update(deltaTime: number, isPlaying: boolean): void {
+  public update(deltaTime: number, isPlaying: boolean, animateDeaths = false): void {
     // Update effect manager (always runs for visual effects)
     if (this.effectManager) {
       this.effectManager.update(deltaTime);
@@ -176,6 +176,11 @@ export class LevelState {
       // TowerCombatManager.update also advances projectiles while playing
       this.towerCombatManager.update(deltaTime);
     } else {
+      // Between waves, bodies from the last kills still fall and settle (not while paused)
+      if (animateDeaths) {
+        this.zombieManager.updateDyingOnly(deltaTime);
+        this.syncEntityArrays();
+      }
       // Keep projectiles moving/cleaning up outside PLAYING (combat tick is paused)
       this.projectileManager.update(deltaTime);
     }

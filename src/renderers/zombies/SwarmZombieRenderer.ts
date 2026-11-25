@@ -10,14 +10,6 @@ export class SwarmZombieRenderer extends BaseZombieRenderer {
   protected readonly DEATH_PARTICLES = [
     { type: ParticleType.BLOOD_SPLATTER, count: 4, velocity: 40, lifetime: 700, size: 1.5 },
   ];
-  protected readonly DEATH_ANIM = {
-    phase1Duration: 200,
-    phase2Duration: 400,
-    phase3Duration: 400,
-    phase1MaxRotation: 0.4,
-    phase1MaxScale: 0.15,
-    phase3YDrift: 3,
-  };
 
   private readonly PRIMARY_COLOR = 0x6a7a2a;
   private readonly DARK_GREEN = 0x4a5a1a;
@@ -41,17 +33,7 @@ export class SwarmZombieRenderer extends BaseZombieRenderer {
 
     this.finishInitParts();
   }
-  protected updateWounds(
-    healthPercent: number,
-    _anim: {
-      leftLegOffset: number;
-      rightLegOffset: number;
-      bodyBob: number;
-      leftArmAngle: number;
-      rightArmAngle: number;
-      headSway: number;
-    }
-  ): void {
+  protected updateWounds(healthPercent: number): void {
     this.drawWounds(this.woundsPart, healthPercent, 0, this.BLOOD_RED, 3, 5, 7, 0.5, 0.8, 0.8);
   }
 }

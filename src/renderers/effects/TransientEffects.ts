@@ -300,21 +300,8 @@ export class TransientEffects {
       particleContainer.stroke({ width: 1.5, color: 0x00ffff, alpha: 0.8 });
     }
 
-    // Tint zombie
-    const visual = zombie.getRendererGraphics();
-    if (visual) {
-      const originalTint = visual.tint;
-      visual.tint = 0x00ffff;
-
-      const tintDuration = isPrimary ? 300 : 200;
-      EffectCleanupManager.registerTimeout(
-        setTimeout(() => {
-          if (visual && !visual.destroyed) {
-            visual.tint = originalTint;
-          }
-        }, tintDuration)
-      );
-    }
+    // Electric flash on the zombie (game time, and composes with its other tints)
+    zombie.flash(0x66ffff, isPrimary ? 300 : 200);
 
     const duration = isPrimary ? 250 : 180;
     EffectCleanupManager.registerTimeout(

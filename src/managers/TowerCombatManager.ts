@@ -14,12 +14,21 @@ export class TowerCombatManager implements ZombieSpatialQuery {
   private zombieGrid: SpatialGrid<Zombie & { [key: string]: unknown }>;
   private eventBus: EventBus;
 
-  /** Apply damage to a zombie, emit DAMAGE_DEALT event, and return whether it was killed. */
-  private applyDamageToZombie(zombie: Zombie, tower: Tower, damage: number): boolean {
+  /**
+   * Apply damage to a zombie, emit DAMAGE_DEALT event, and return whether it was killed.
+   * `source` is where the hit came from (the tower, or the previous zombie in an arc chain), so
+   * the death animation knows its killer and direction.
+   */
+  private applyDamageToZombie(
+    zombie: Zombie,
+    tower: Tower,
+    damage: number,
+    source: { x: number; y: number } = tower.position
+  ): boolean {
     const modifier = zombie.getDamageModifier(tower.getType());
     const modifiedDamage = damage * modifier;
     const healthBefore = zombie.getHealth();
-    zombie.takeDamage(modifiedDamage);
+    zombie.takeDamage(modifiedDamage, tower.getType(), source.x, source.y);
     const healthAfter = zombie.getHealth();
     const actualDamage = healthBefore - healthAfter;
     const killed = healthAfter <= 0;
@@ -426,7 +435,7 @@ export class TowerCombatManager implements ZombieSpatialQuery {
 
     // Chain through multiple targets
     for (let jump = 0; jump < maxJumps && currentTarget; jump++) {
-      this.applyDamageToZombie(currentTarget, tower, currentDamage);
+      this.applyDamageToZombie(currentTarget, tower, currentDamage, currentSource);
 
       // Mark this zombie as hit
       hitZombies.add(currentTarget);

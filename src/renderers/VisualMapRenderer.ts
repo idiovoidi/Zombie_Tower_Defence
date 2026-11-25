@@ -9,7 +9,6 @@ import { GraveyardRenderer } from './map/GraveyardRenderer';
 import { PathRenderer } from './map/PathRenderer';
 import { StructureRenderer } from './map/StructureRenderer';
 import { TerrainRenderer } from './map/TerrainRenderer';
-import { ZombieCorpseRenderer } from './zombies/ZombieCorpseRenderer';
 
 export class VisualMapRenderer {
   private mapManager: MapManager;
@@ -20,8 +19,6 @@ export class VisualMapRenderer {
   private mapContainer: Graphics;
   private pathGraphics: Graphics;
   private fogContainer: Graphics;
-  private corpseContainer: Graphics;
-  private corpseRenderer: ZombieCorpseRenderer;
   private campAnimationContainer: Graphics;
   private decalContainer: Graphics;
 
@@ -54,10 +51,8 @@ export class VisualMapRenderer {
 
     this.pathGraphics = new Graphics();
     this.fogContainer = new Graphics();
-    this.corpseContainer = new Graphics();
     this.campAnimationContainer = new Graphics();
     this.decalContainer = new Graphics();
-    this.corpseRenderer = new ZombieCorpseRenderer(this.corpseContainer);
 
     // Initialize sub-renderers
     this.terrainRenderer = new TerrainRenderer(this.mapContainer);
@@ -73,14 +68,12 @@ export class VisualMapRenderer {
 
     this.mapRoot.zIndex = LAYER_INDICES.MAP_BACKGROUND;
     this.pathGraphics.zIndex = LAYER_INDICES.PATH;
-    this.corpseContainer.zIndex = LAYER_INDICES.CORPSES;
     this.decalContainer.zIndex = LAYER_INDICES.DECAL_ANIMATIONS;
     this.campAnimationContainer.zIndex = LAYER_INDICES.CAMP_ANIMATIONS;
     this.fogContainer.zIndex = LAYER_INDICES.FOG;
 
     this.worldContainer.addChild(this.mapRoot);
     this.worldContainer.addChild(this.pathGraphics);
-    this.worldContainer.addChild(this.corpseContainer);
     this.worldContainer.addChild(this.decalContainer);
     this.worldContainer.addChild(this.campAnimationContainer);
     this.worldContainer.addChild(this.fogContainer);
@@ -138,8 +131,6 @@ export class VisualMapRenderer {
     this.mapContainer.clear();
     this.pathGraphics.clear();
     this.mapMask.clear();
-    this.corpseContainer.clear();
-    this.corpseRenderer.clear();
     this.decalRenderer.clear();
     this.fogRenderer.clear();
     this.inputManager.clearCampClickArea();
@@ -147,23 +138,12 @@ export class VisualMapRenderer {
 
   public updateFog(deltaTime: number): void {
     this.fogRenderer.update(deltaTime);
-    this.corpseRenderer.update(deltaTime);
     this.decalRenderer.update(deltaTime);
     this.campRenderer.updateAnimations(deltaTime);
     this.fogRenderer.render();
-    this.renderCorpses();
-  }
-
-  public addCorpse(x: number, y: number, type: string): void {
-    this.corpseRenderer.addCorpse(x, y, type);
   }
 
   public setOnMapRendered(callback: ((mapData: MapData | null) => void) | null): void {
     this.onMapRendered = callback;
-  }
-
-  private renderCorpses(): void {
-    this.corpseContainer.clear();
-    this.corpseRenderer.render();
   }
 }

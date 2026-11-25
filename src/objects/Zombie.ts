@@ -62,6 +62,10 @@ export class Zombie extends GameObject {
   private lastDamageSourcePosition: { x: number; y: number } | null = null; // Position of last damage source
   private isDying = false; // Track if death animation is in progress
   private deathAnimationComplete = false; // Track if animation finished
+  /** Bumped on every init() so a death animation from a previous (pooled) life can't finish this one. */
+  private life = 0;
+  /** True once the kill reward for this life has been paid out. */
+  private killRewardClaimed = false;
 
   private knockback = new KnockbackState();
   private lane = new LaneOffset();
@@ -99,8 +103,11 @@ export class Zombie extends GameObject {
     this.transformComponent.setPosition(x, y);
 
     this.currentWaypointIndex = 0;
+    this.life++;
     this.isDying = false;
     this.deathAnimationComplete = false;
+    this.killRewardClaimed = false;
+    this.lastDamageSource = 'unknown';
     this.lastDamageSourcePosition = null;
     this.isSlowed = false;
     this.currentSlowPercent = 0;
@@ -260,18 +267,9 @@ export class Zombie extends GameObject {
     // If dying, only update renderer (for death animation), skip movement/AI
     if (this.isDying) {
       if (this.renderer) {
-        this.renderer.update(deltaTime, this.getRenderState());
-        // Continue rendering even while dying
-        this.renderer.render(this, this.getRenderState());
-
-        // Add ragdoll graphics to the zombie container if active
-        const baseRenderer = this.renderer as BaseZombieRenderer;
-        if (baseRenderer.isRagdolling?.()) {
-          const ragdollGfx = baseRenderer.getRagdollGraphics?.();
-          if (ragdollGfx && !ragdollGfx.parent) {
-            this.addChild(ragdollGfx);
-          }
-        }
+        const state = this.getRenderState();
+        this.renderer.update(deltaTime, state);
+        this.renderer.render(this, state);
       }
       return;
     }
@@ -484,12 +482,6 @@ export class Zombie extends GameObject {
     return actualDamage;
   }
 
-  // Method to show damage effect (for testing)
-  public showDamageEffect(_damage: number): void {
-    // Visual damage effects are handled by the renderer
-    // This method is kept for potential future enhancements
-  }
-
   // Method to show death effect (for testing)
   public showDeathEffect(): void {
     // Trigger death effects
@@ -501,6 +493,10 @@ export class Zombie extends GameObject {
     // Prevent multiple death triggers
     if (this.isDying) return;
     this.isDying = true;
+    const life = this.life;
+    if (this.healthBar) {
+      this.healthBar.visible = false;
+    }
 
     const impactAngle = this.lastDamageSourcePosition
       ? Math.atan2(
@@ -509,11 +505,15 @@ export class Zombie extends GameObject {
         )
       : Math.random() * Math.PI * 2;
 
+    // Where the body is drawn: the render-only lane offset (pivot) shifts the sprite off the
+    // logical position, so blood and corpses use this to land under the body, not beside it
+    const visual = this.getVisualPosition();
+
     // Emit death event IMMEDIATELY for blood/corpse systems
     // This ensures corpse appears at death location before animation moves the zombie
     this.emit('zombieDeath', {
-      x: this.position.x,
-      y: this.position.y,
+      x: visual.x,
+      y: visual.y,
       type: this.type,
       size: this.getVisualSize(),
       killerType: this.lastDamageSource,
@@ -524,15 +524,37 @@ export class Zombie extends GameObject {
     // Play death animation if using new renderer
     if (this.renderer) {
       await this.renderer.playDeathAnimation(this.lastDamageSource, impactAngle);
+      // Reused from the pool before the old death finished: that death belongs to a past life
+      if (life !== this.life) {
+        return;
+      }
       // The settled ragdoll becomes the corpse, exactly where it lies
       const body = this.renderer.takeRagdollCorpse?.();
       if (body) {
-        this.emit('zombieCorpse', { x: this.position.x, y: this.position.y, body });
+        const at = this.getVisualPosition();
+        this.emit('zombieCorpse', { x: at.x, y: at.y, body });
       }
     }
 
     // Mark animation complete so ZombieManager can remove this zombie
     this.deathAnimationComplete = true;
+  }
+
+  /** World position the body is drawn at (logical position shifted by the lane-offset pivot). */
+  public getVisualPosition(): { x: number; y: number } {
+    return { x: this.position.x - this.pivot.x, y: this.position.y - this.pivot.y };
+  }
+
+  /**
+   * Pay-once guard for the kill reward: true the first time it's called after this zombie dies,
+   * false afterwards (dead zombies stay in the list while their death animation plays).
+   */
+  public claimKillReward(): boolean {
+    if (this.killRewardClaimed || this.healthComponent.isAlive()) {
+      return false;
+    }
+    this.killRewardClaimed = true;
+    return true;
   }
 
   /**
@@ -613,12 +635,9 @@ export class Zombie extends GameObject {
     return this.type;
   }
 
-  /**
-   * Get the renderer's graphics for visual effects
-   */
-  public getRendererGraphics(): Graphics | null {
-    // Access graphics property from BaseZombieRenderer
-    return (this.renderer as unknown as { graphics?: Graphics })?.graphics || null;
+  /** Flash the body towards a colour for a while of game time (e.g. a Tesla zap). */
+  public flash(color: number, durationMs: number): void {
+    this.renderer?.flash?.(color, durationMs);
   }
 
   public getReward(): number {

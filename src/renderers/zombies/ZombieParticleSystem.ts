@@ -54,6 +54,8 @@ export class ZombieParticleSystem {
   private particles: Particle[] = [];
   private graphics: Graphics;
   private maxParticles = 150;
+  /** True while the graphics holds drawn particles, so an empty system skips the per-frame clear. */
+  private hasDrawn = false;
   /** Trail positions from blood trail particles */
   private trailPositions: Array<{
     x: number;
@@ -234,7 +236,15 @@ export class ZombieParticleSystem {
   }
 
   render(): void {
+    if (this.particles.length === 0 && this.trailPositions.length === 0) {
+      if (this.hasDrawn) {
+        this.graphics.clear();
+        this.hasDrawn = false;
+      }
+      return;
+    }
     this.graphics.clear();
+    this.hasDrawn = true;
 
     // Render trail positions (persistent blood marks)
     for (const trail of this.trailPositions) {

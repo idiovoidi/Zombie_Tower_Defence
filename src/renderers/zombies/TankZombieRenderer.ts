@@ -10,14 +10,6 @@ export class TankZombieRenderer extends BaseZombieRenderer {
   protected readonly DEATH_PARTICLES = [
     { type: ParticleType.BLOOD_SPLATTER, count: 15, velocity: 70, lifetime: 1500, size: 3 },
   ];
-  protected readonly DEATH_ANIM = {
-    phase1Duration: 400,
-    phase2Duration: 600,
-    phase3Duration: 800,
-    phase1MaxRotation: 0.2,
-    phase1MaxScale: 0.15,
-    phase3YDrift: 3,
-  };
 
   private readonly PRIMARY_COLOR = 0x5a1a1a;
   private readonly DARK_RED = 0x3a0a0a;
@@ -41,17 +33,7 @@ export class TankZombieRenderer extends BaseZombieRenderer {
 
     this.finishInitParts();
   }
-  protected updateWounds(
-    healthPercent: number,
-    _anim: {
-      leftLegOffset: number;
-      rightLegOffset: number;
-      bodyBob: number;
-      leftArmAngle: number;
-      rightArmAngle: number;
-      headSway: number;
-    }
-  ): void {
+  protected updateWounds(healthPercent: number): void {
     this.drawWounds(this.woundsPart, healthPercent, 0, this.BLOOD_RED, 8, 12, 14, 1.5, 2, 0.8);
   }
 }

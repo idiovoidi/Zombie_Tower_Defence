@@ -1,10 +1,8 @@
 import type { Graphics } from 'pixi.js';
 import { BaseZombieRenderer } from './BaseZombieRenderer';
-import { playParticleDeathAnimation } from './CustomDeathAnimation';
 import { GlowEffect } from './components/ZombieEffects';
 import type { HumanoidRigParts } from './rig/HumanoidRig';
 import { ParticleType } from './ZombieParticleSystem';
-import type { ZombieRenderState } from './ZombieRenderer';
 
 export class MechanicalZombieRenderer extends BaseZombieRenderer {
   protected readonly ANIMATOR_TYPE = 'MECHANICAL';
@@ -18,14 +16,6 @@ export class MechanicalZombieRenderer extends BaseZombieRenderer {
     { type: ParticleType.SMOKE, count: 8, velocity: 40, lifetime: 1200, size: 2.5 },
     { type: ParticleType.METAL_SHARDS, count: 6, velocity: 55, lifetime: 1000, size: 2 },
   ];
-  protected readonly DEATH_ANIM = {
-    phase1Duration: 300,
-    phase2Duration: 500,
-    phase3Duration: 700,
-    phase1MaxRotation: 0.2,
-    phase1MaxScale: 0,
-    phase3YDrift: 4,
-  };
 
   private readonly PRIMARY_COLOR = 0x3a4a5a;
   private readonly DARK_METAL = 0x2a3a4a;
@@ -153,25 +143,11 @@ export class MechanicalZombieRenderer extends BaseZombieRenderer {
       arm.joint.addChild(arm.lower);
     }
   }
-  protected updateWounds(
-    healthPercent: number,
-    _anim: {
-      leftLegOffset: number;
-      rightLegOffset: number;
-      bodyBob: number;
-      leftArmAngle: number;
-      rightArmAngle: number;
-      headSway: number;
-    }
-  ): void {
+  protected updateWounds(healthPercent: number): void {
     this.woundsPart.clear();
     if (healthPercent < 0.7) {
       this.drawDamage(this.woundsPart, healthPercent, 0);
     }
-  }
-
-  override update(deltaTime: number, state: ZombieRenderState): void {
-    super.update(deltaTime, state);
   }
 
   // Mechanical has a flicker phase — fully override
@@ -180,31 +156,22 @@ export class MechanicalZombieRenderer extends BaseZombieRenderer {
     return false;
   }
 
-  override async playDeathAnimation(_killerType?: string): Promise<void> {
-    return playParticleDeathAnimation({
-      container: this.container,
-      particles: this.particles,
-      deathParticles: this.DEATH_PARTICLES,
-      durationMs: 1500,
-      setFrameId: id => {
-        this.deathAnimationFrame = id;
-      },
-      onUpdate: elapsed => {
-        if (elapsed < 300) {
-          const t = elapsed / 300;
-          this.container.rotation = t * 0.2;
-          this.container.alpha = t % 0.2 < 0.1 ? 0.5 : 1.0;
-        } else if (elapsed < 800) {
-          const t = (elapsed - 300) / 500;
-          this.container.rotation = 0.2 + t * (Math.PI / 2 - 0.2);
-          this.container.scale.y = 1 - t * 0.7;
-          this.container.alpha = 1 - t * 0.4;
-        } else {
-          const t = (elapsed - 800) / 700;
-          this.container.alpha = 0.6 - t * 0.6;
-          this.container.y += t * 4;
-        }
-      },
+  override playDeathAnimation(_killerType?: string): Promise<void> {
+    return this.playTimedDeath(1500, elapsed => {
+      if (elapsed < 300) {
+        const t = elapsed / 300;
+        this.container.rotation = t * 0.2;
+        this.container.alpha = t % 0.2 < 0.1 ? 0.5 : 1.0;
+      } else if (elapsed < 800) {
+        const t = (elapsed - 300) / 500;
+        this.container.rotation = 0.2 + t * (Math.PI / 2 - 0.2);
+        this.container.scale.y = 1 - t * 0.7;
+        this.container.alpha = 1 - t * 0.4;
+      } else {
+        const t = (elapsed - 800) / 700;
+        this.container.alpha = 0.6 - t * 0.6;
+        this.container.y += t * 4;
+      }
     });
   }
 

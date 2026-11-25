@@ -1,3 +1,5 @@
+> **Superseded (2026-11-26).** Kept for history only. The current zombie rig, ragdoll and corpse work is planned in the zombie overhaul plan and lives in `src/renderers/zombies/` (rig/, RagdollSkeleton, RagdollConfig). Spine was removed and the methods named below no longer exist.
+
 # Spine Integration for Zombie Tower Defense
 
 This document describes the Spine animation integration for improved zombie animations and ragdoll death effects.

@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import type { LimbFlags, LimbId } from '../../components/LimbState';
-import { EffectCleanupManager } from '../../utils/EffectCleanupManager';
 import { multiplyTint } from '../lighting/zombieLighting';
+import { getFlashFilter } from './damageFlash';
 import { createHumanoidShadow, type HumanoidPartOptions } from './HumanoidPartBuilder';
 import {
   calculateDeathImpulses,
@@ -19,17 +19,7 @@ import { ZombieAnimator } from './ZombieAnimator';
 import { ParticleType, ZombieParticleSystem } from './ZombieParticleSystem';
 import type { IZombieRenderer, ZombieRenderState } from './ZombieRenderer';
 
-export interface DeathAnimConfig {
-  phase1Duration: number; // ms
-  phase2Duration: number; // ms
-  phase3Duration: number; // ms
-  phase1MaxRotation: number;
-  phase1MaxScale: number;
-  phase3YDrift: number;
-}
-
 export interface DamageEffectConfig {
-  flashTint: number;
   particles: Array<{
     type: ParticleType;
     count: number;
@@ -60,8 +50,17 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
   protected container: Container;
   protected animator: ZombieAnimator;
   protected particles: ZombieParticleSystem;
-  protected deathAnimationFrame: number | null = null;
   protected isInitialized = false;
+
+  /** True from the start of the death animation until reset (pool reuse). */
+  protected dying = false;
+  /** Resolves the pending playDeathAnimation promise; run on game time in update(). */
+  private deathResolve: (() => void) | null = null;
+  /** Ms left of the post-settle pause before the ragdoll is handed over as a corpse (-1 = not settled). */
+  private settleDelay = -1;
+  /** Timed (non-ragdoll) death animation, advanced on game time. */
+  private timedDeath: { elapsed: number; duration: number; onUpdate: (ms: number) => void } | null =
+    null;
 
   // Burning effect properties
   protected isBurning = false;
@@ -89,10 +88,14 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
   protected rig!: HumanoidRigParts;
   protected lastHealthPercent = 1.0;
 
-  // Tint = base (health / burning / phase colour) x light cast (nearby fire, explosions, arcs)
-  private baseTint = 0xffffff;
+  // Tint = body (health greying / phase colour) x status (burning) x light cast (fire, blasts, arcs).
+  // Each layer has one owner, so no source overwrites another.
+  private bodyTint = 0xffffff;
+  private statusTint = 0xffffff;
   private lightCast = 0xffffff;
-  private isFlashing = false;
+  private appliedTint = -1;
+  /** Ms left on the hit flash (a filter overlay, so it can brighten as well as darken). */
+  private flashRemaining = 0;
   private currentLimbs: LimbFlags = {
     leftArm: true,
     rightArm: true,
@@ -111,9 +114,6 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
 
   /** Particles emitted at death */
   protected abstract readonly DEATH_PARTICLES: DeathParticleConfig['particles'];
-
-  /** Timing/motion config for the 3-phase death animation */
-  protected abstract readonly DEATH_ANIM: DeathAnimConfig;
 
   constructor() {
     this.container = new Container();
@@ -144,6 +144,12 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
       this.initParts();
     }
 
+    // While dying the death animation owns the body; only the particles keep drawing
+    if (this.dying) {
+      this.particles.render();
+      return;
+    }
+
     const anim = this.animator.getCurrentFrame();
     const healthPercent = state.health / state.maxHealth;
 
@@ -156,7 +162,7 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
 
     // Update wounds if health changed significantly
     if (Math.abs(this.lastHealthPercent - healthPercent) > 0.05) {
-      this.updateWounds(healthPercent, anim);
+      this.updateWounds(healthPercent);
       this.lastHealthPercent = healthPercent;
     }
 
@@ -165,7 +171,7 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     this.particles.render();
 
     // Allow subclasses to apply custom effects
-    this.applyCustomEffects(healthPercent, anim);
+    this.applyCustomEffects(healthPercent);
 
     // Add container to parent if needed
     if (this.container.parent !== container) {
@@ -176,32 +182,12 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
   /**
    * Subclasses implement wound update logic.
    */
-  protected abstract updateWounds(
-    healthPercent: number,
-    anim: {
-      leftLegOffset: number;
-      rightLegOffset: number;
-      bodyBob: number;
-      leftArmAngle: number;
-      rightArmAngle: number;
-      headSway: number;
-    }
-  ): void;
+  protected abstract updateWounds(healthPercent: number): void;
 
   /**
-   * Override to apply custom effects (e.g., stealth fade, mechanical damage).
+   * Override to apply custom effects (e.g., stealth fade, mechanical damage). Not called while dying.
    */
-  protected applyCustomEffects(
-    _healthPercent: number,
-    _anim: {
-      leftLegOffset: number;
-      rightLegOffset: number;
-      bodyBob: number;
-      leftArmAngle: number;
-      rightArmAngle: number;
-      headSway: number;
-    }
-  ): void {
+  protected applyCustomEffects(_healthPercent: number): void {
     // Default: no custom effects
   }
 
@@ -303,6 +289,7 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     }
     this.particles.update(deltaTime);
     this.updateBurningEffect(deltaTime);
+    this.updateFlash(deltaTime);
 
     // Update ragdoll if active
     if (this.isInRagdollDeath && this.ragdoll) {
@@ -312,21 +299,63 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
       if (this.ragdollGraphics && !this.ragdollGraphics.destroyed) {
         this.ragdollGraphics.clear();
         this.drawRagdollFrame(this.ragdollGraphics, deltaTime);
-        this.particles.render(); // Note: ZombieParticleSystem now clears its own graphics
+      }
+
+      // Once settled, hold the pose briefly, then hand it over as the corpse
+      if (this.settleDelay < 0) {
+        if (this.ragdoll.isSettled()) {
+          this.settleDelay = 300;
+        }
+      } else {
+        this.settleDelay -= deltaTime;
+        if (this.settleDelay <= 0) {
+          this.finishRagdollDeath();
+        }
+      }
+    }
+
+    if (this.timedDeath) {
+      this.timedDeath.elapsed += deltaTime;
+      if (this.timedDeath.elapsed >= this.timedDeath.duration) {
+        this.timedDeath = null;
+        this.resolveDeath();
+      } else {
+        this.timedDeath.onUpdate(this.timedDeath.elapsed);
       }
     }
   }
 
+  /**
+   * Flash the whole zombie towards `color` for `durationMs` of game time (hits, Tesla zaps).
+   * Uses a shared colour-matrix filter, so it can brighten dark zombies, which tint cannot.
+   */
+  flash(color: number, durationMs = 100): void {
+    if (this.dying || this.container.destroyed) {
+      return;
+    }
+    this.flashRemaining = Math.max(this.flashRemaining, durationMs);
+    this.container.filters = [getFlashFilter(color)];
+  }
+
+  private updateFlash(deltaTime: number): void {
+    if (this.flashRemaining <= 0) {
+      return;
+    }
+    this.flashRemaining -= deltaTime;
+    if (this.flashRemaining <= 0) {
+      this.clearFlash();
+    }
+  }
+
+  private clearFlash(): void {
+    this.flashRemaining = 0;
+    if (!this.container.destroyed) {
+      this.container.filters = null;
+    }
+  }
+
   showDamageEffect(damageType: string, _amount: number): void {
-    this.isFlashing = true;
-    this.container.tint = this.DAMAGE_FLASH_TINT;
-    const timeout = EffectCleanupManager.registerTimeout(
-      setTimeout(() => {
-        EffectCleanupManager.clearTimeout(timeout);
-        this.isFlashing = false;
-        this.applyComposedTint();
-      }, 100)
-    );
+    this.flash(this.DAMAGE_FLASH_TINT, 100);
 
     // Emit directional damage particles if we have a damage direction
     const direction =
@@ -400,60 +429,74 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
   }
 
   /**
-   * Play death animation using procedural ragdoll physics.
+   * Play death animation using procedural ragdoll physics. Runs on game time (advanced in
+   * update), so it respects pause and game speed; resolves once the body settles.
    *
    * @param killerType - The tower type that killed this zombie
    * @param impactAngle - Direction from damage source to zombie (radians)
    */
-  async playDeathAnimation(killerType?: string, impactAngle?: number): Promise<void> {
+  playDeathAnimation(killerType?: string, impactAngle?: number): Promise<void> {
     const angle = impactAngle ?? Math.random() * Math.PI * 2;
     const killer = killerType ?? 'unknown';
 
-    // Create ragdoll skeleton from zombie type config
+    this.setupRagdoll(killer, angle);
+
+    // The ragdoll draws between the (hidden) living body and the particles, so death particles
+    // and blood trails stay visible above it
+    this.ragdollGraphics = new Graphics();
+    const particleGraphics = this.particles.getGraphics();
+    if (particleGraphics.parent === this.container) {
+      this.container.addChildAt(
+        this.ragdollGraphics,
+        this.container.getChildIndex(particleGraphics)
+      );
+    } else {
+      this.container.addChild(this.ragdollGraphics);
+    }
+    this.isInRagdollDeath = true;
+    this.ragdollAlpha = 1;
+    this.settleDelay = -1;
+
+    this.beginDeath();
+    this.emitDeathBurst(killer, angle);
+
+    return new Promise(resolve => {
+      this.deathResolve = resolve;
+    });
+  }
+
+  /** Build the ragdoll for this zombie type and killer: impulses, detached parts, bleeding, style. */
+  private setupRagdoll(killer: string, angle: number): void {
     const config = createRagdollConfig(this.zombieTypeName, 18);
-    this.ragdoll = new RagdollSkeleton(config);
-
-    // Initialize from current position (center of container)
-    this.ragdoll.initializeFromPose(0, 0, 0);
-
-    // Calculate and apply death impulses
-    const impulses = calculateDeathImpulses(killer, angle, this.zombieTypeName);
-    this.ragdoll.applyImpulses(impulses);
+    const ragdoll = new RagdollSkeleton(config);
+    this.ragdoll = ragdoll;
+    ragdoll.initializeFromPose(0, 0, 0);
+    ragdoll.applyImpulses(calculateDeathImpulses(killer, angle, this.zombieTypeName));
 
     // Detach bones for extreme deaths + any limbs already lost while alive
-    const detachable = new Set(getDetachableBones(killer));
+    const detachable = getDetachableBones(killer).filter(b => !this.isLostLimb(b));
     for (const boneName of detachable) {
-      if (!this.isLostLimb(boneName)) {
-        this.ragdoll.detachBone(boneName);
-      }
+      ragdoll.detachBone(boneName);
     }
 
-    // Add blood emission points
     const bloodConfig = getDeathBloodConfig(killer);
     for (const bp of bloodConfig) {
-      this.ragdoll.addBloodEmitPoint(bp.boneName, bp.boneT, bp.rate, bp.duration);
+      ragdoll.addBloodEmitPoint(bp.boneName, bp.boneT, bp.rate, bp.duration);
     }
     // Torn-off parts spurt from both the stump and the severed end
     let bloodAmount = bloodConfig.reduce((sum, bp) => sum + (bp.rate * bp.duration) / 1000, 0);
     for (const boneName of detachable) {
-      if (this.isLostLimb(boneName)) continue;
-      const tornFromHead = boneName === 'head';
-      this.ragdoll.addBloodEmitPoint(boneName, 0, 18, 900);
-      this.ragdoll.addBloodEmitPoint(
-        'torso',
-        tornFromHead ? 0 : boneName.startsWith('leg') ? 1 : 0.1,
-        26,
-        1100
-      );
+      ragdoll.addBloodEmitPoint(boneName, 0, 18, 900);
+      ragdoll.addBloodEmitPoint('torso', stumpPointOnTorso(boneName), 26, 1100);
       bloodAmount += 40;
     }
 
     // Killer-specific wounds, tint and blood colour; lost limbs stay missing
     const style = createRagdollStyle(this.zombieTypeName, killer);
-    this.ragdoll.setStyle(style);
+    ragdoll.setStyle(style);
     for (const boneName of ['arm_l', 'arm_r', 'leg_l', 'leg_r']) {
       if (this.isLostLimb(boneName)) {
-        this.ragdoll.removeLimb(boneName);
+        ragdoll.removeLimb(boneName);
       }
     }
     this.ragdollGroundY = config.groundY;
@@ -462,25 +505,17 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
       config.bones[0].length,
       bloodAmount
     );
-    this.ragdoll.onGroundHit = (x, y, speed) => this.ragdollGore?.addSplat(x, y, speed);
-
-    // Wire ragdoll blood emission to particle system
-    this.ragdoll.onBloodEmit = (x, y, vx, vy) => {
+    ragdoll.onGroundHit = (x, y, speed) => this.ragdollGore?.addSplat(x, y, speed);
+    ragdoll.onBloodEmit = (x, y, vx, vy) => {
       this.particles.emitWithVelocity(ParticleType.BLOOD_TRAIL, x, y, vx, vy, {
         lifetime: 600,
         size: 2,
       });
     };
+  }
 
-    // Create ragdoll graphics
-    this.ragdollGraphics = new Graphics();
-    this.isInRagdollDeath = true;
-    this.ragdollAlpha = 1;
-
-    // Hide original zombie container
-    this.container.alpha = 0;
-
-    // Emit initial death particles in impact direction
+  /** Death particles thrown in the impact direction, plus mist and gore for heavy kills. */
+  private emitDeathBurst(killer: string, angle: number): void {
     for (const p of this.DEATH_PARTICLES) {
       this.particles.emit(
         p.type,
@@ -496,8 +531,8 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
       );
     }
 
-    // Blood mist for explosive deaths
-    if (killer === 'Grenade' || killer === 'Tesla') {
+    const explosive = killer === 'Grenade' || killer === 'Tesla';
+    if (explosive) {
       this.particles.emit(ParticleType.BLOOD_MIST, 0, 0, {
         count: 8,
         velocity: 40,
@@ -505,44 +540,71 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
         size: 6,
       });
     }
-
-    // Gore chunks for heavy kills
-    if (killer === 'Grenade' || killer === 'Shotgun' || killer === 'Tesla') {
+    if (explosive || killer === 'Shotgun') {
+      const grenade = killer === 'Grenade';
       this.particles.emit(
         ParticleType.GORE_CHUNK,
         0,
         0,
-        {
-          count: killer === 'Grenade' ? 6 : 3,
-          velocity: killer === 'Grenade' ? 120 : 80,
-          lifetime: 1500,
-          size: 4,
-        },
-        { angle, spread: killer === 'Grenade' ? 3.0 : 1.5 }
+        { count: grenade ? 6 : 3, velocity: grenade ? 120 : 80, lifetime: 1500, size: 4 },
+        { angle, spread: grenade ? 3.0 : 1.5 }
       );
     }
+  }
 
-    // Wait for ragdoll to settle
+  /**
+   * Enter the dying state: the living body hides (particles stay), flashes stop, and render()
+   * stops posing the rig. Subclasses with their own death animation call this too.
+   */
+  protected beginDeath(): void {
+    this.dying = true;
+    this.clearFlash();
+    if (this.isInitialized) {
+      this.rig.body.visible = false;
+      this.shadowPart.visible = false;
+    }
+  }
+
+  /**
+   * Timed death animation (no ragdoll) driven by game time: `onUpdate` gets the elapsed ms each
+   * frame and the promise resolves after `durationMs`. The body stays visible for the effect.
+   */
+  protected playTimedDeath(
+    durationMs: number,
+    onUpdate: (elapsedMs: number) => void
+  ): Promise<void> {
+    this.dying = true;
+    this.clearFlash();
+    for (const p of this.DEATH_PARTICLES) {
+      this.particles.emit(p.type, 0, 0, {
+        count: p.count,
+        velocity: p.velocity,
+        lifetime: p.lifetime,
+        size: p.size,
+      });
+    }
+    this.timedDeath = { elapsed: 0, duration: durationMs, onUpdate };
     return new Promise(resolve => {
-      const checkDone = () => {
-        if (!this.ragdoll || this.ragdoll.isSettled()) {
-          // Give a brief fade-out period after settlement
-          setTimeout(() => {
-            this.captureRestingCorpse();
-            this.isInRagdollDeath = false;
-            if (this.ragdollGraphics && !this.ragdollGraphics.destroyed) {
-              this.ragdollGraphics.destroy();
-              this.ragdollGraphics = null;
-            }
-            this.ragdoll = null;
-            resolve();
-          }, 300);
-        } else {
-          this.deathAnimationFrame = requestAnimationFrame(checkDone);
-        }
-      };
-      this.deathAnimationFrame = requestAnimationFrame(checkDone);
+      this.deathResolve = resolve;
     });
+  }
+
+  private finishRagdollDeath(): void {
+    this.captureRestingCorpse();
+    this.isInRagdollDeath = false;
+    this.settleDelay = -1;
+    if (this.ragdollGraphics && !this.ragdollGraphics.destroyed) {
+      this.ragdollGraphics.destroy();
+    }
+    this.ragdollGraphics = null;
+    this.ragdoll = null;
+    this.resolveDeath();
+  }
+
+  private resolveDeath(): void {
+    const resolve = this.deathResolve;
+    this.deathResolve = null;
+    resolve?.();
   }
 
   private isLostLimb(boneName: string): boolean {
@@ -599,34 +661,26 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     return corpse;
   }
 
-  /**
-   * Get the ragdoll graphics for rendering by the zombie container.
-   */
-  public getRagdollGraphics(): Graphics | null {
-    return this.ragdollGraphics;
-  }
-
-  /**
-   * Check if currently in ragdoll death mode.
-   */
-  public isRagdolling(): boolean {
-    return this.isInRagdollDeath;
-  }
-
   reset(): void {
-    // Cancel any ongoing death animation
-    if (this.deathAnimationFrame !== null) {
-      cancelAnimationFrame(this.deathAnimationFrame);
-      this.deathAnimationFrame = null;
-    }
+    // End any death animation in progress. Its promise resolves now; Zombie ignores a death that
+    // finishes after the zombie has been reused.
+    this.timedDeath = null;
+    this.settleDelay = -1;
+    this.dying = false;
+    this.resolveDeath();
     // Reset container transform and visibility
     this.container.alpha = 1;
+    this.clearFlash();
     this.lightCast = 0xffffff;
-    this.isFlashing = false;
+    this.statusTint = 0xffffff;
     this.setTint(0xffffff);
     this.container.position.set(0, 0);
     this.container.rotation = 0;
     this.container.scale.set(1, 1);
+    if (this.isInitialized) {
+      this.rig.body.visible = true;
+      this.shadowPart.visible = true;
+    }
     // Clear any particles
     this.particles.clear?.();
     // Stop burning effect
@@ -652,8 +706,8 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     this.ragdollAlpha = 1;
     if (this.ragdollGraphics && !this.ragdollGraphics.destroyed) {
       this.ragdollGraphics.destroy();
-      this.ragdollGraphics = null;
     }
+    this.ragdollGraphics = null;
     if (this.restingCorpse && !this.restingCorpse.destroyed) {
       this.restingCorpse.destroy();
     }
@@ -661,10 +715,8 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
   }
 
   destroy(): void {
-    if (this.deathAnimationFrame !== null) {
-      cancelAnimationFrame(this.deathAnimationFrame);
-      this.deathAnimationFrame = null;
-    }
+    this.timedDeath = null;
+    this.resolveDeath();
     this.container.destroy({ children: true });
     this.particles.destroy();
 
@@ -687,8 +739,8 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     this.isBurning = true;
     this.burnParticleTimer = 0;
 
-    // Apply orange tint to indicate burning
-    this.setTint(0xff6600);
+    // Orange status tint while burning (its own layer, so health greying doesn't wipe it)
+    this.setStatusTint(BURNING_TINT);
 
     // Emit initial burst of fire particles
     this.particles.emit(ParticleType.FIRE, 0, -5, {
@@ -717,10 +769,7 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     this.isBurning = false;
     this.burnParticleTimer = 0;
 
-    // Reset tint if not already dead
-    if (!this.container.destroyed && this.container.alpha > 0.5) {
-      this.setTint(0xffffff);
-    }
+    this.setStatusTint(0xffffff);
   }
 
   /**
@@ -776,11 +825,17 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
   }
 
   /**
-   * Set the zombie's base tint (health greying, burning orange, phase colours). The nearby-light
-   * cast is multiplied in, so lighting never fights the other tint sources.
+   * Set the zombie's body tint (health greying, phase colours). Owned by applyHealthTint, which
+   * runs every frame; status and light layers are multiplied in, so none overwrites another.
    */
   protected setTint(color: number): void {
-    this.baseTint = color;
+    this.bodyTint = color;
+    this.applyComposedTint();
+  }
+
+  /** Status tint layer (burning orange); 0xffffff = none. */
+  protected setStatusTint(color: number): void {
+    this.statusTint = color;
     this.applyComposedTint();
   }
 
@@ -794,11 +849,15 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
   }
 
   private applyComposedTint(): void {
-    // A damage flash owns the tint for its 100ms; the composed tint is restored afterwards
-    if (this.isFlashing || this.container.destroyed) {
+    if (this.container.destroyed) {
       return;
     }
-    this.container.tint = multiplyTint(this.baseTint, this.lightCast);
+    const tint = composeZombieTint(this.bodyTint, this.statusTint, this.lightCast);
+    // Only touch the display object when the value changes (this runs every frame)
+    if (tint !== this.appliedTint) {
+      this.container.tint = tint;
+      this.appliedTint = tint;
+    }
   }
 
   /**
@@ -815,4 +874,20 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
       this.setTint(0xffffff);
     }
   }
+}
+
+/** Status tint while burning: warm orange, softened so the zombie's own colours still read. */
+export const BURNING_TINT = 0xffa060;
+
+/** Final zombie tint: body (health / phase) x status (burning) x nearby-light cast. */
+export function composeZombieTint(body: number, status: number, light: number): number {
+  return multiplyTint(multiplyTint(body, status), light);
+}
+
+/** Where on the torso bone (0 = neck end, 1 = hip end) a part torn off at death leaves its stump. */
+function stumpPointOnTorso(boneName: string): number {
+  if (boneName === 'head') {
+    return 0;
+  }
+  return boneName.startsWith('leg') ? 1 : 0.1;
 }

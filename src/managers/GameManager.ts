@@ -755,7 +755,11 @@ export class GameManager {
     // Combat tick owned by LevelState (effects, zombies, sync, towers, projectiles)
     const isPlaying = this.currentState === GameConfig.GAME_STATES.PLAYING;
     PerformanceMonitor.startMeasure('levelState');
-    this.levelState.update(deltaTime, isPlaying);
+    this.levelState.update(
+      deltaTime,
+      isPlaying,
+      this.currentState === GameConfig.GAME_STATES.WAVE_COMPLETE
+    );
     PerformanceMonitor.endMeasure('levelState');
 
     // Update sludge pool manager
@@ -764,11 +768,6 @@ export class GameManager {
     PerformanceMonitor.endMeasure('sludgePoolManager');
 
     if (isPlaying) {
-      // Check wave completion
-      if (this.zombieManager.isWaveComplete()) {
-        this.onWaveComplete();
-      }
-
       // Process zombie rewards and end-of-path damage
       const zombies = this.zombieManager.getZombies();
       for (let i = zombies.length - 1; i >= 0; i--) {
@@ -778,6 +777,10 @@ export class GameManager {
           isAlive: () => boolean;
         };
         if (healthComponent && !healthComponent.isAlive()) {
+          // Dead zombies stay listed while their death animation plays: pay out once only
+          if (!zombie.claimKillReward()) {
+            continue;
+          }
           const reward = zombie.getReward();
           this.addMoney(reward);
           this.addScore(10);
@@ -795,6 +798,15 @@ export class GameManager {
           this.loseLife(damage);
           this.zombieManager.removeZombie(i);
         }
+      }
+
+      // Wave completion (after rewards, so the last kill of a wave is paid before it ends).
+      // Zombies still playing their death animation don't hold the wave open.
+      if (
+        this.currentState === GameConfig.GAME_STATES.PLAYING &&
+        this.zombieManager.isWaveComplete()
+      ) {
+        this.onWaveComplete();
       }
     }
 

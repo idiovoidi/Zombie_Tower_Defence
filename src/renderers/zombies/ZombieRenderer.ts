@@ -28,6 +28,8 @@ export interface IZombieRenderer {
   updateBurningEffect?(deltaTime: number): void;
   /** Gore burst + stump when a limb is lost while alive */
   onLimbLost?(limb: LimbId): void;
+  /** Flash the body towards a colour for `durationMs` of game time (hits, zaps). */
+  flash?(color: number, durationMs?: number): void;
   /** Multiply-tint cast by a nearby coloured light (0xffffff = none). */
   setLightCast?(color: number): void;
   /** True if death leaves a ragdoll corpse (see takeRagdollCorpse). */
