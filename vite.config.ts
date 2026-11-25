@@ -15,17 +15,14 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src'),
-      '@components': resolve(__dirname, 'src/components'),
-      '@managers': resolve(__dirname, 'src/managers'),
-      '@objects': resolve(__dirname, 'src/objects'),
-      '@ui': resolve(__dirname, 'src/ui'),
-      '@utils': resolve(__dirname, 'src/utils'),
-      '@config': resolve(__dirname, 'src/config'),
-      '@renderers': resolve(__dirname, 'src/renderers'),
+      '@': resolve(import.meta.dirname, 'src'),
+      '@components': resolve(import.meta.dirname, 'src/components'),
+      '@managers': resolve(import.meta.dirname, 'src/managers'),
+      '@objects': resolve(import.meta.dirname, 'src/objects'),
+      '@ui': resolve(import.meta.dirname, 'src/ui'),
+      '@utils': resolve(import.meta.dirname, 'src/utils'),
+      '@config': resolve(import.meta.dirname, 'src/config'),
+      '@renderers': resolve(import.meta.dirname, 'src/renderers'),
     },
-  },
-  esbuild: {
-    sourcemap: true,
   },
 });

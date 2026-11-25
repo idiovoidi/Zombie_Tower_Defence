@@ -1,7 +1,7 @@
 // Mock for pixi.js to avoid issues with ES modules in tests
 import { vi } from 'vitest';
 
-const mockContainer = vi.fn().mockImplementation(() => {
+const mockContainer = vi.fn().mockImplementation(function () {
   const children = [];
   return {
     children,
@@ -25,7 +25,7 @@ const mockContainer = vi.fn().mockImplementation(() => {
   };
 });
 
-const mockGraphics = vi.fn().mockImplementation(() => {
+const mockGraphics = vi.fn().mockImplementation(function () {
   const children = [];
   return {
     children,
@@ -51,7 +51,7 @@ const mockGraphics = vi.fn().mockImplementation(() => {
   };
 });
 
-const mockText = vi.fn().mockImplementation(options => {
+const mockText = vi.fn().mockImplementation(function (options) {
   return {
     text: options?.text,
     style: options?.style,

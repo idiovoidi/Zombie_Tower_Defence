@@ -5,7 +5,7 @@
     "module": "ESNext",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
-    "types": ["vitest/globals", "vite/client"],
+    "types": ["vitest/globals", "vite/client", "node"],
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -39,16 +39,15 @@
     "forceConsistentCasingInFileNames": true,
 
     /* Module Resolution */
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@components/*": ["src/components/*"],
-      "@managers/*": ["src/managers/*"],
-      "@objects/*": ["src/objects/*"],
-      "@ui/*": ["src/ui/*"],
-      "@utils/*": ["src/utils/*"],
-      "@config/*": ["src/config/*"],
-      "@renderers/*": ["src/renderers/*"]
+      "@/*": ["./src/*"],
+      "@components/*": ["./src/components/*"],
+      "@managers/*": ["./src/managers/*"],
+      "@objects/*": ["./src/objects/*"],
+      "@ui/*": ["./src/ui/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@config/*": ["./src/config/*"],
+      "@renderers/*": ["./src/renderers/*"]
     }
   },
   "include": ["src", "tests"],
