@@ -1,5 +1,6 @@
 import { DevConfig } from './config/devConfig';
 import { GameConfig } from './config/gameConfig';
+import { LIGHTING } from './config/lightingConstants';
 import { createApp } from './core/Application';
 import { registerDebugConsoleAPIs } from './core/DebugConsole';
 import { bindDebugHotkeys } from './core/DebugHotkeys';
@@ -15,7 +16,6 @@ import {
 import { GameManager } from './managers/GameManager';
 import { InputManager } from './managers/InputManager';
 import { TimeControlManager } from './managers/TimeControlManager';
-import { LIGHTING } from './config/lightingConstants';
 import { parseDayNightSeconds } from './renderers/lighting/dayNightConfig';
 import { lightingManager } from './renderers/lighting/LightingManager';
 import { DebugUtils } from './utils/DebugUtils';

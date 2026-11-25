@@ -83,9 +83,7 @@ export class LevelSelectMenu extends UIComponent {
     const custom = levels.filter(l => l.id.startsWith('custom_'));
 
     const hasCustom = custom.length > 0;
-    this.sectionLabel.text = hasCustom
-      ? 'CAMPAIGN SECTORS  ·  CUSTOM OPS'
-      : 'CAMPAIGN SECTORS';
+    this.sectionLabel.text = hasCustom ? 'CAMPAIGN SECTORS  ·  CUSTOM OPS' : 'CAMPAIGN SECTORS';
 
     campaign.forEach((level, index) => {
       this.createLevelCard(level, index, false, progress);

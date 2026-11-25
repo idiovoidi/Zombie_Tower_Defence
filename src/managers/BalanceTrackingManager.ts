@@ -8,9 +8,9 @@
  * - Monitor performance of analysis operations
  */
 
-import type { IGameStateProvider } from '../types/gameProviders';
 import { GameConfig } from '../config/gameConfig';
 import { getTowerStats } from '../config/towerConstants';
+import type { IGameStateProvider } from '../types/gameProviders';
 import {
   BalanceAnalyzer,
   type BalanceIssue,

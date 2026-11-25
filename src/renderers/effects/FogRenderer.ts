@@ -189,7 +189,10 @@ export class FogRenderer {
 
       // Keep deep fog hugging lower ground with a slight vertical clamp
       if (particle.layer === 'deep') {
-        particle.y = Math.min(Math.max(particle.y, top + this.graveyardBounds.height * 0.35), bottom);
+        particle.y = Math.min(
+          Math.max(particle.y, top + this.graveyardBounds.height * 0.35),
+          bottom
+        );
       } else {
         particle.y = Math.min(Math.max(particle.y, top), bottom);
       }
@@ -234,8 +237,7 @@ export class FogRenderer {
       const t = ring / FOG.RING_COUNT;
       const rx = particle.rx * (0.55 + t * 0.45);
       const ry = particle.ry * (0.55 + t * 0.45);
-      const ringAlpha =
-        particle.alpha * Math.pow(FOG.RING_ALPHA_FALLOFF, FOG.RING_COUNT - ring);
+      const ringAlpha = particle.alpha * FOG.RING_ALPHA_FALLOFF ** (FOG.RING_COUNT - ring);
 
       this.fogContainer
         .ellipse(particle.x, particle.y, rx, ry)

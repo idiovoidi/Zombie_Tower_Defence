@@ -1,7 +1,7 @@
 import type { Graphics } from 'pixi.js';
 import { BaseZombieRenderer } from './BaseZombieRenderer';
-import { GlowEffect } from './components/ZombieEffects';
 import { playParticleDeathAnimation } from './CustomDeathAnimation';
+import { GlowEffect } from './components/ZombieEffects';
 import type { HumanoidRigParts } from './rig/HumanoidRig';
 import { ParticleType } from './ZombieParticleSystem';
 import type { ZombieRenderState } from './ZombieRenderer';

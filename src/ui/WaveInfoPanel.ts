@@ -1,6 +1,6 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { GameConfig } from '../config/gameConfig';
-import { WaveManager, type ZombieGroup } from '../managers/WaveManager';
+import type { WaveManager, ZombieGroup } from '../managers/WaveManager';
 import { UIPanel } from './UIPanel';
 
 interface ZombieMeta {
@@ -169,24 +169,15 @@ export class WaveInfoPanel extends UIPanel {
   private buildWaveCard(waveNum: number, groups: ZombieGroup[], pad: number, y: number): number {
     const isCurrent = waveNum === this.currentWave;
     const hasElite = groups.some(
-      g =>
-        g.type === GameConfig.ZOMBIE_TYPES.BOSS ||
-        g.type === GameConfig.ZOMBIE_TYPES.NECRO_TANK
+      g => g.type === GameConfig.ZOMBIE_TYPES.BOSS || g.type === GameConfig.ZOMBIE_TYPES.NECRO_TANK
     );
     const hasBoss = groups.some(g => g.type === GameConfig.ZOMBIE_TYPES.BOSS);
     const hasNecro = groups.some(g => g.type === GameConfig.ZOMBIE_TYPES.NECRO_TANK);
-    const borderColor = isCurrent
-      ? 0x69f0ae
-      : hasBoss
-        ? 0xffaa00
-        : hasNecro
-          ? 0xaa66ff
-          : 0x444444;
+    const borderColor = isCurrent ? 0x69f0ae : hasBoss ? 0xffaa00 : hasNecro ? 0xaa66ff : 0x444444;
     const bgColor = isCurrent ? 0x1e2a1e : 0x222222;
 
     const entries = groups.map(group => {
-      const count =
-        this.waveManager?.calculateZombieCount(group.count, waveNum, group.type) ?? 0;
+      const count = this.waveManager?.calculateZombieCount(group.count, waveNum, group.type) ?? 0;
       const interval =
         this.waveManager?.calculateSpawnRate(group.spawnInterval, waveNum, group.type) ?? 0;
       return { type: group.type, count, interval };
@@ -206,13 +197,8 @@ export class WaveInfoPanel extends UIPanel {
     card.addChild(bg);
 
     // Header
-    const eliteLabel = hasBoss && hasNecro
-      ? 'BOSS + NECRO'
-      : hasBoss
-        ? 'BOSS'
-        : hasNecro
-          ? 'NECRO TANK'
-          : null;
+    const eliteLabel =
+      hasBoss && hasNecro ? 'BOSS + NECRO' : hasBoss ? 'BOSS' : hasNecro ? 'NECRO TANK' : null;
     const titleLabel = isCurrent
       ? `WAVE ${waveNum}  ·  NOW`
       : eliteLabel
@@ -273,8 +259,7 @@ export class WaveInfoPanel extends UIPanel {
       const isElite =
         entry.type === GameConfig.ZOMBIE_TYPES.BOSS ||
         entry.type === GameConfig.ZOMBIE_TYPES.NECRO_TANK;
-      const eliteColor =
-        entry.type === GameConfig.ZOMBIE_TYPES.NECRO_TANK ? 0xaa66ff : 0xffaa00;
+      const eliteColor = entry.type === GameConfig.ZOMBIE_TYPES.NECRO_TANK ? 0xaa66ff : 0xffaa00;
 
       const swatch = new Graphics();
       swatch.roundRect(12, rowY + 3, 8, 8, 2).fill({ color: meta.color });

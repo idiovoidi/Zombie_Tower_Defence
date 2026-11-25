@@ -189,12 +189,15 @@ export class PathRenderer {
           const y0 = curr.y + dy * t0 + ny * (trackOffset * side + wobble0);
           const x1 = curr.x + dx * t1 + nx * (trackOffset * side + wobble1);
           const y1 = curr.y + dy * t1 + ny * (trackOffset * side + wobble1);
-          this.graphics.moveTo(x0, y0).lineTo(x1, y1).stroke({
-            width: PATH.TRACK_WIDTH + this.rand() * 0.8,
-            color: COLORS.PATH_TRACK,
-            alpha: PATH.TRACK_ALPHA * (0.75 + this.rand() * 0.35),
-            cap: 'round',
-          });
+          this.graphics
+            .moveTo(x0, y0)
+            .lineTo(x1, y1)
+            .stroke({
+              width: PATH.TRACK_WIDTH + this.rand() * 0.8,
+              color: COLORS.PATH_TRACK,
+              alpha: PATH.TRACK_ALPHA * (0.75 + this.rand() * 0.35),
+              cap: 'round',
+            });
         }
       }
     }
@@ -228,8 +231,7 @@ export class PathRenderer {
 
         // Pebbles with contact shadow
         if (this.rand() < PATH.ROCK_CHANCE) {
-          const size =
-            PATH.ROCK_MIN_SIZE + this.rand() * (PATH.ROCK_MAX_SIZE - PATH.ROCK_MIN_SIZE);
+          const size = PATH.ROCK_MIN_SIZE + this.rand() * (PATH.ROCK_MAX_SIZE - PATH.ROCK_MIN_SIZE);
           const off = (this.rand() - 0.5) * pathWidth * PATH.ROCK_OFFSET_FACTOR;
           const px = x + nx * off;
           const py = y + ny * off;
@@ -314,12 +316,10 @@ export class PathRenderer {
         const x = curr.x + dx * t + nx * edgeDist * side;
         const y = curr.y + dy * t + ny * edgeDist * side;
         const size = PATH.EDGE_BLOB_SIZE * (0.6 + this.rand() * 0.8);
-        this.graphics
-          .ellipse(x, y, size, size * 0.55)
-          .fill({
-            color: this.rand() > 0.5 ? COLORS.PATH_OUTER : COLORS.PATH_SHOULDER,
-            alpha: PATH.EDGE_BLOB_ALPHA,
-          });
+        this.graphics.ellipse(x, y, size, size * 0.55).fill({
+          color: this.rand() > 0.5 ? COLORS.PATH_OUTER : COLORS.PATH_SHOULDER,
+          alpha: PATH.EDGE_BLOB_ALPHA,
+        });
       }
     }
   }

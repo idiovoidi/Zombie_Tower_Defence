@@ -28,21 +28,17 @@ describe('Headless Combat Simulation', () => {
     waveCompleteEvents = [];
 
     // Subscribe to events for verification
-    eventBus.on(GameEvents.DAMAGE_DEALT,
-      data => {
-        if (data) damageEvents.push(data);
-      }
-    );
+    eventBus.on(GameEvents.DAMAGE_DEALT, data => {
+      if (data) damageEvents.push(data);
+    });
 
     eventBus.on(GameEvents.ZOMBIE_KILLED, data => {
       if (data) zombieKillEvents.push(data);
     });
 
-    eventBus.on(GameEvents.WAVE_COMPLETE,
-      data => {
-        if (data) waveCompleteEvents.push(data);
-      }
-    );
+    eventBus.on(GameEvents.WAVE_COMPLETE, data => {
+      if (data) waveCompleteEvents.push(data);
+    });
   });
 
   afterEach(() => {
@@ -77,11 +73,9 @@ describe('Headless Combat Simulation', () => {
   it('should emit DAMAGE_DEALT events without any visual components', () => {
     // Track damage via events only
     let damageEmitted = false;
-    eventBus.on(GameEvents.DAMAGE_DEALT,
-      () => {
-        damageEmitted = true;
-      }
-    );
+    eventBus.on(GameEvents.DAMAGE_DEALT, () => {
+      damageEmitted = true;
+    });
 
     // Emit a damage event directly (simulating what TowerCombatManager would do)
     eventBus.emit(GameEvents.DAMAGE_DEALT, {

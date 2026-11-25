@@ -111,8 +111,14 @@ export class MetalUI {
    * Corrugated outer + rusty inner metal panel with optional rivets and caution edges.
    */
   static createMetalPanel(options: MetalPanelOptions): Container {
-    const { width, height, inset = 10, rivets = true, cautionTop = false, cautionBottom = false } =
-      options;
+    const {
+      width,
+      height,
+      inset = 10,
+      rivets = true,
+      cautionTop = false,
+      cautionBottom = false,
+    } = options;
     const panel = new Container();
     panel.cullableChildren = false;
 
@@ -342,7 +348,9 @@ export class MetalUI {
    * Concrete plate button with metal frame, caution wash, and hover glow.
    * Label Text is stored as `button.labelText` for later updates.
    */
-  static createMetalButton(options: MetalButtonOptions): Container & { labelText: Text; frame: Graphics } {
+  static createMetalButton(
+    options: MetalButtonOptions
+  ): Container & { labelText: Text; frame: Graphics } {
     const width = options.width ?? UI_LAYOUT.BUTTON_WIDTH;
     const height = options.height ?? UI_LAYOUT.BUTTON_HEIGHT;
     const variant = options.variant ?? 'ready';
@@ -462,12 +470,7 @@ export class MetalUI {
     return button;
   }
 
-  static paintControlButton(
-    bg: Graphics,
-    size: number,
-    fill: number,
-    border: number
-  ): void {
+  static paintControlButton(bg: Graphics, size: number, fill: number, border: number): void {
     bg.clear();
     bg.rect(0, 0, size, size).fill(fill);
     bg.rect(0, 0, size, size).stroke({ width: 2, color: border });

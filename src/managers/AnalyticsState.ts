@@ -5,10 +5,6 @@
  * all analytics-related functionality in a cohesive unit.
  */
 
-import { EventBus, type EventSubscription, GameEvents } from '../utils/EventBus';
-import { StatTracker } from '../utils/StatTracker';
-import { AIPlayerManager } from './AIPlayerManager';
-import { BalanceTrackingManager } from './BalanceTrackingManager';
 import type {
   IAIActionProvider,
   IBalanceTrackingProvider,
@@ -17,6 +13,10 @@ import type {
   ITowerStateProvider,
   IZombieStateProvider,
 } from '../types/gameProviders';
+import { EventBus, type EventSubscription, GameEvents } from '../utils/EventBus';
+import { StatTracker } from '../utils/StatTracker';
+import { AIPlayerManager } from './AIPlayerManager';
+import { BalanceTrackingManager } from './BalanceTrackingManager';
 
 interface AnalyticsConfig {
   gameManager: IGameStateProvider &

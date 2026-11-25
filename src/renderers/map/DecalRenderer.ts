@@ -47,7 +47,6 @@ export class DecalRenderer {
   private graphics: Graphics;
   private time = 0;
   private mapWidth = 1024;
-  private mapHeight = 768;
   private trees: SwayTree[] = [];
   private ponds: Pond[] = [];
   private reeds: Reed[] = [];
@@ -63,7 +62,6 @@ export class DecalRenderer {
   public initialize(mapData: MapData): void {
     this.clear();
     this.mapWidth = mapData.width;
-    this.mapHeight = mapData.height;
 
     const rand = createSeededRandom(
       hashString(mapData.name) ^ (mapData.width * 31 + mapData.height)

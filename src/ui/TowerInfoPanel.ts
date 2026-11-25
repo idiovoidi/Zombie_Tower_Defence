@@ -1,4 +1,4 @@
-import { Container, Graphics, Text } from 'pixi.js';
+import { type Container, type Graphics, Text } from 'pixi.js';
 import { UI_COLORS, UI_FONTS, UI_LAYOUT } from '../config/uiTheme';
 import type { EconomyState } from '../managers/EconomyState';
 import { TowerManager } from '../managers/TowerManager';

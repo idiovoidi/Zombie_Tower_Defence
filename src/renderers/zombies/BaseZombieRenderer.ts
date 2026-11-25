@@ -1,10 +1,8 @@
 import { Container, Graphics } from 'pixi.js';
 import type { LimbFlags, LimbId } from '../../components/LimbState';
 import { EffectCleanupManager } from '../../utils/EffectCleanupManager';
+import { multiplyTint } from '../lighting/zombieLighting';
 import { createHumanoidShadow, type HumanoidPartOptions } from './HumanoidPartBuilder';
-import { applyHumanoidPose } from './rig/applyHumanoidPose';
-import { assembleHumanoidRig, createHumanoidRig, type HumanoidRigParts } from './rig/HumanoidRig';
-import { computeHumanoidRigLayout } from './rig/humanoidRigLayout';
 import {
   calculateDeathImpulses,
   createRagdollConfig,
@@ -12,9 +10,11 @@ import {
   getDeathBloodConfig,
   getDetachableBones,
 } from './RagdollConfig';
-import { multiplyTint } from '../lighting/zombieLighting';
 import { RagdollGore } from './RagdollGore';
 import { RagdollSkeleton } from './RagdollSkeleton';
+import { applyHumanoidPose } from './rig/applyHumanoidPose';
+import { assembleHumanoidRig, createHumanoidRig, type HumanoidRigParts } from './rig/HumanoidRig';
+import { computeHumanoidRigLayout } from './rig/humanoidRigLayout';
 import { ZombieAnimator } from './ZombieAnimator';
 import { ParticleType, ZombieParticleSystem } from './ZombieParticleSystem';
 import type { IZombieRenderer, ZombieRenderState } from './ZombieRenderer';

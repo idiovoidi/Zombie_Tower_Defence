@@ -118,9 +118,7 @@ export function bindDebugHotkeys(
     // B - Toggle zombie health bars
     if (key === 'b') {
       DebugConstants.SHOW_ZOMBIE_HEALTH_BARS = !DebugConstants.SHOW_ZOMBIE_HEALTH_BARS;
-      DebugUtils.debug(
-        `🩺 Health bars ${DebugConstants.SHOW_ZOMBIE_HEALTH_BARS ? 'ON' : 'OFF'}`
-      );
+      DebugUtils.debug(`🩺 Health bars ${DebugConstants.SHOW_ZOMBIE_HEALTH_BARS ? 'ON' : 'OFF'}`);
       return;
     }
 

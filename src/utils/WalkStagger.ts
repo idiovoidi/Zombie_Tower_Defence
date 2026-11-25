@@ -30,7 +30,7 @@ export function stepWave(phase: number, sharpness = 0.65, drag = 0): number {
 
   const s = Math.sin(t * TAU);
   const a = Math.abs(s);
-  return Math.sign(s) * Math.pow(a, sharpness);
+  return Math.sign(s) * a ** sharpness;
 }
 
 /**

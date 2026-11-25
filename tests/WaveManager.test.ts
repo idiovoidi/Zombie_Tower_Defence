@@ -157,9 +157,7 @@ describe('WaveManager', () => {
       // biome-ignore lint/suspicious/noExplicitAny: Test needs access to private property
       (waveManager as any).currentWave = 11;
       expect(
-        waveManager
-          .getCurrentWaveZombies()
-          .some(g => g.type === GameConfig.ZOMBIE_TYPES.NECRO_TANK)
+        waveManager.getCurrentWaveZombies().some(g => g.type === GameConfig.ZOMBIE_TYPES.NECRO_TANK)
       ).toBe(false);
 
       // biome-ignore lint/suspicious/noExplicitAny: Test needs access to private property
@@ -172,17 +170,13 @@ describe('WaveManager', () => {
       // biome-ignore lint/suspicious/noExplicitAny: Test needs access to private property
       (waveManager as any).currentWave = 16;
       expect(
-        waveManager
-          .getCurrentWaveZombies()
-          .some(g => g.type === GameConfig.ZOMBIE_TYPES.NECRO_TANK)
+        waveManager.getCurrentWaveZombies().some(g => g.type === GameConfig.ZOMBIE_TYPES.NECRO_TANK)
       ).toBe(false);
 
       // biome-ignore lint/suspicious/noExplicitAny: Test needs access to private property
       (waveManager as any).currentWave = 20;
       expect(
-        waveManager
-          .getCurrentWaveZombies()
-          .some(g => g.type === GameConfig.ZOMBIE_TYPES.NECRO_TANK)
+        waveManager.getCurrentWaveZombies().some(g => g.type === GameConfig.ZOMBIE_TYPES.NECRO_TANK)
       ).toBe(true);
     });
   });

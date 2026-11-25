@@ -1,9 +1,9 @@
 import {
   nodesReachingEnd,
+  type PathGraph,
   pathGraphFromWaypoints,
   pathGraphToSegments,
   resolveRandomPath,
-  type PathGraph,
 } from '../../src/path/pathGraph';
 
 function forkedGraph(): PathGraph {

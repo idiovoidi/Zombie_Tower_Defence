@@ -6,8 +6,8 @@
  * Then use: printWaveBalance(1, 10) to see balance report
  */
 
-import { GameConfig } from '../config/gameConfig';
 import { DebugConstants } from '../config/debugConstants';
+import { GameConfig } from '../config/gameConfig';
 import {
   buildDefaultWaveTable,
   SPAWN_INTERVAL_SCALE,
@@ -68,9 +68,7 @@ export class WaveManager {
   }
 
   private static isEliteZombieType(type?: string): boolean {
-    return (
-      type === GameConfig.ZOMBIE_TYPES.BOSS || type === GameConfig.ZOMBIE_TYPES.NECRO_TANK
-    );
+    return type === GameConfig.ZOMBIE_TYPES.BOSS || type === GameConfig.ZOMBIE_TYPES.NECRO_TANK;
   }
 
   /**
@@ -83,10 +81,7 @@ export class WaveManager {
       return;
     }
     this.waveOverrides = new Map(
-      Array.from(overrides.entries()).map(([wave, groups]) => [
-        wave,
-        groups.map(g => ({ ...g })),
-      ])
+      Array.from(overrides.entries()).map(([wave, groups]) => [wave, groups.map(g => ({ ...g }))])
     );
   }
 

@@ -1,8 +1,4 @@
-import {
-  DismembermentConfig,
-  type LimbFlags,
-  type LimbId,
-} from '../config/dismembermentConfig';
+import { DismembermentConfig, type LimbFlags, type LimbId } from '../config/dismembermentConfig';
 import { Component } from './Component';
 
 export type { LimbFlags, LimbId };
@@ -74,7 +70,11 @@ export class LimbState extends Component {
 
     const newlyCrossed: number[] = [];
     for (const threshold of DismembermentConfig.THRESHOLDS) {
-      if (prevRatio > threshold && nextRatio <= threshold && !this.crossedThresholds.has(threshold)) {
+      if (
+        prevRatio > threshold &&
+        nextRatio <= threshold &&
+        !this.crossedThresholds.has(threshold)
+      ) {
         newlyCrossed.push(threshold);
       }
     }

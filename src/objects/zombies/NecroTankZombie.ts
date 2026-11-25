@@ -1,8 +1,5 @@
 import { GameConfig } from '../../config/gameConfig';
-import {
-  convertToTowerType,
-  type TowerType,
-} from '../../config/zombieResistances';
+import { convertToTowerType, type TowerType } from '../../config/zombieResistances';
 import { Zombie } from '../Zombie';
 
 /** Ability hooks provided by ZombieManager for corpse revival. */
@@ -72,8 +69,7 @@ export class NecroTankZombie extends Zombie {
   }
 
   public override getDamageModifier(towerType: TowerType | string): number {
-    const converted =
-      typeof towerType === 'string' ? convertToTowerType(towerType) : towerType;
+    const converted = typeof towerType === 'string' ? convertToTowerType(towerType) : towerType;
 
     // Flame matrix flips after armor shed (design: 2.0× → 0.8×)
     if (converted === 'FLAME' && this.armorFullyShed) {

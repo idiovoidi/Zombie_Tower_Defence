@@ -158,18 +158,9 @@ export class TimeControlUI extends UIComponent {
       this.pauseButton.labelText.style.fill = UI_COLORS.TEXT;
     }
 
-    this.paintButton(
-      this.slowSpeedButton,
-      !state.isPaused && state.speed === TimeSpeed.SLOW
-    );
-    this.paintButton(
-      this.normalSpeedButton,
-      !state.isPaused && state.speed === TimeSpeed.NORMAL
-    );
-    this.paintButton(
-      this.fastSpeedButton,
-      !state.isPaused && state.speed === TimeSpeed.FAST
-    );
+    this.paintButton(this.slowSpeedButton, !state.isPaused && state.speed === TimeSpeed.SLOW);
+    this.paintButton(this.normalSpeedButton, !state.isPaused && state.speed === TimeSpeed.NORMAL);
+    this.paintButton(this.fastSpeedButton, !state.isPaused && state.speed === TimeSpeed.FAST);
     this.paintButton(
       this.veryFastSpeedButton,
       !state.isPaused && state.speed === TimeSpeed.VERY_FAST

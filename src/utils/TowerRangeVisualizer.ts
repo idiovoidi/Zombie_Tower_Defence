@@ -5,8 +5,6 @@ export class TowerRangeVisualizer {
   private rangeIndicator: Graphics | null = null;
   private container: Container | null = null;
 
-  public constructor() {}
-
   public static setInstance(visualizer: TowerRangeVisualizer): void {
     TowerRangeVisualizer.instance = visualizer;
   }

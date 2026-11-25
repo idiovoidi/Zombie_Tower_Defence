@@ -1,10 +1,10 @@
 import { TowerConstants } from '@config/towerConstants';
-import { DebugUtils } from '../utils/DebugUtils';
 import type {
   IAIActionProvider,
   IGameStateProvider,
   IStatTrackerProvider,
 } from '../types/gameProviders';
+import { DebugUtils } from '../utils/DebugUtils';
 
 interface PlacementZone {
   x: number;

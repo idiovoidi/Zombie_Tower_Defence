@@ -1,8 +1,8 @@
 import { DevConfig } from '../config/devConfig';
 import type { GameManager } from '../managers/GameManager';
 import type { TimeControlManager } from '../managers/TimeControlManager';
-import { LogExporter } from '../utils/LogExporter';
 import { DebugUtils } from '../utils/DebugUtils';
+import { LogExporter } from '../utils/LogExporter';
 
 export async function registerDebugConsoleAPIs(
   gameManager: GameManager,
@@ -47,7 +47,9 @@ export async function registerDebugConsoleAPIs(
       DebugUtils.debug('Wave balancing tools loaded!');
       DebugUtils.debug('Usage:');
       DebugUtils.debug('  printWaveBalance(1, 10) - Print balance report for waves 1-10');
-      DebugUtils.debug('  WaveBalancing.updateConfig({ difficultyMultiplier: 1.5 }) - Adjust difficulty');
+      DebugUtils.debug(
+        '  WaveBalancing.updateConfig({ difficultyMultiplier: 1.5 }) - Adjust difficulty'
+      );
       DebugUtils.debug('  WaveBalancing.calculateZombieHealth(5) - Get zombie health for wave 5');
     };
     DebugUtils.debug('💡 Type waveBalance() in console to load wave balancing tools');

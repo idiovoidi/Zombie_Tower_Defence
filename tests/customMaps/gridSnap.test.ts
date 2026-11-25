@@ -1,10 +1,10 @@
-import { CUSTOM_MAP_DEFAULT_CELL_SIZE } from '../../src/customMaps/types';
 import {
-  snapToGrid,
-  snapWaypoint,
   appendSnappedWaypoint,
   removeLastWaypoint,
+  snapToGrid,
+  snapWaypoint,
 } from '../../src/customMaps/gridSnap';
+import { CUSTOM_MAP_DEFAULT_CELL_SIZE } from '../../src/customMaps/types';
 
 describe('gridSnap', () => {
   test('snapToGrid rounds to nearest cell', () => {

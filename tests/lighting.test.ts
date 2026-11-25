@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
-import { LightingManager } from '../src/renderers/lighting/LightingManager';
 import { bulletGlowScale, shotGlowAlpha } from '../src/renderers/lighting/glowMath';
+import { LightingManager } from '../src/renderers/lighting/LightingManager';
 
 describe('LightingManager', () => {
   test('default light comes from the top-right and shadows fall down-left', () => {

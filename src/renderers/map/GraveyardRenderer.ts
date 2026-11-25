@@ -143,44 +143,6 @@ export class GraveyardRenderer {
     }
   }
 
-  private renderDisturbedEarth(): void {
-    for (let i = 0; i < GRAVEYARD_DETAILS.DISTURBED_EARTH_COUNT; i++) {
-      const x = this.graveyardX + this.rand() * this.graveyardWidth;
-      const y = this.graveyardY + this.rand() * this.graveyardHeight;
-      const size =
-        GRAVEYARD_DETAILS.DISTURBED_EARTH_MIN_SIZE +
-        this.rand() *
-          (GRAVEYARD_DETAILS.DISTURBED_EARTH_MAX_SIZE - GRAVEYARD_DETAILS.DISTURBED_EARTH_MIN_SIZE);
-      const points =
-        GRAVEYARD_DETAILS.DISTURBED_EARTH_MIN_POINTS +
-        Math.floor(
-          this.rand() *
-            (GRAVEYARD_DETAILS.DISTURBED_EARTH_MAX_POINTS -
-              GRAVEYARD_DETAILS.DISTURBED_EARTH_MIN_POINTS)
-        );
-
-      this.graphics.moveTo(x, y);
-      for (let j = 0; j < points; j++) {
-        const angle = (j / points) * Math.PI * 2;
-        const radius =
-          size *
-          (GRAVEYARD_DETAILS.DISTURBED_EARTH_MIN_RADIUS_FACTOR +
-            this.rand() *
-              (GRAVEYARD_DETAILS.DISTURBED_EARTH_MAX_RADIUS_FACTOR -
-                GRAVEYARD_DETAILS.DISTURBED_EARTH_MIN_RADIUS_FACTOR));
-        this.graphics.lineTo(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius);
-      }
-      this.graphics.fill({
-        color: GRAVEYARD_DETAILS.DISTURBED_EARTH_COLOR,
-        alpha:
-          GRAVEYARD_DETAILS.DISTURBED_EARTH_MIN_ALPHA +
-          this.rand() *
-            (GRAVEYARD_DETAILS.DISTURBED_EARTH_MAX_ALPHA -
-              GRAVEYARD_DETAILS.DISTURBED_EARTH_MIN_ALPHA),
-      });
-    }
-  }
-
   private renderBonesAndDebris(): void {
     for (let i = 0; i < 10; i++) {
       // Debris clusters around the open graves, where the dead climbed out
