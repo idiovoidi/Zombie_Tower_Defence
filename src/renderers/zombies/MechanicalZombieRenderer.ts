@@ -74,27 +74,28 @@ export class MechanicalZombieRenderer extends BaseZombieRenderer {
     torso.circle(0, cy, 2).fill({ color: this.EYE_GLOW, alpha: 0.4 });
     torso.circle(0, cy, 1.2).fill({ color: this.EYE_GLOW, alpha: 0.7 });
     // Shoulder servos
-    for (const side of [-1, 1]) {
-      torso.circle(side * l.shoulderX, l.shoulderY, 2.1 * s).fill(this.DARK_METAL);
-      torso.circle(side * l.shoulderX, l.shoulderY, 1.1 * s).fill(this.LIGHT_METAL);
+    for (const x of [l.shoulderFarX, l.shoulderNearX]) {
+      torso.circle(x, l.shoulderY, 2.1 * s).fill(this.DARK_METAL);
+      torso.circle(x, l.shoulderY, 1.1 * s).fill(this.LIGHT_METAL);
     }
 
-    // --- Head: box with a visor (drawn around its own centre, as before)
+    // --- Head: box with a visor, the visor turned towards the facing side (+X)
     const head = rig.head;
     head.clear();
+    const f = l.faceX * 0.6;
     head.rect(-5, -4, 10, 9).fill(this.PRIMARY_COLOR);
     head.rect(-5, -4, 10, 9).stroke({ color: 0x000000, width: 1, alpha: 0.6 });
     head.rect(-4, -3, 8, 7).fill({ color: this.LIGHT_METAL, alpha: 0.4 });
     head.rect(-0.5, -6, 1, 2).fill(this.DARK_METAL);
     head.circle(0, -6, 1).fill({ color: this.EYE_GLOW, alpha: 0.8 });
-    head.rect(-4, -1, 8, 2).fill({ color: 0x000000, alpha: 0.9 });
-    GlowEffect.apply(head, -2.5, 0, 1.8, this.EYE_GLOW);
-    GlowEffect.apply(head, 2.5, 0, 1.8, this.EYE_GLOW);
-    head.rect(-3, -0.5, 1.5, 1).fill(this.EYE_GLOW);
-    head.rect(1.5, -0.5, 1.5, 1).fill(this.EYE_GLOW);
-    head.rect(-2, 2, 4, 1.5).fill({ color: this.DARK_METAL, alpha: 0.8 });
+    head.rect(-4 + f, -1, 8 - f, 2).fill({ color: 0x000000, alpha: 0.9 });
+    GlowEffect.apply(head, -1.5 + f, 0, 1.8, this.EYE_GLOW);
+    GlowEffect.apply(head, 2.6 + f * 0.5, 0, 1.4, this.EYE_GLOW);
+    head.rect(-2.2 + f, -0.5, 1.5, 1).fill(this.EYE_GLOW);
+    head.rect(2.1 + f * 0.5, -0.5, 1, 1).fill(this.EYE_GLOW);
+    head.rect(-1.5 + f, 2, 4, 1.5).fill({ color: this.DARK_METAL, alpha: 0.8 });
     for (let i = 0; i < 4; i++) {
-      head.rect(-1.5 + i, 2.2, 0.5, 1).fill({ color: 0x000000, alpha: 0.6 });
+      head.rect(-1 + f + i, 2.2, 0.5, 1).fill({ color: 0x000000, alpha: 0.6 });
     }
 
     // --- Legs: thigh and shin plates, knee servo, foot plate
@@ -183,17 +184,19 @@ export class MechanicalZombieRenderer extends BaseZombieRenderer {
   }
 
   private drawDamage(graphics: Graphics, healthPercent: number, torsoY: number): void {
+    const rust = this.woundRandom(1);
     const rustCount = Math.floor((1 - healthPercent) * 5);
     for (let i = 0; i < rustCount; i++) {
-      const x = (Math.random() - 0.5) * 10;
-      const y = torsoY + (Math.random() - 0.5) * 11;
-      graphics.circle(x, y, 0.8 + Math.random() * 1.5).fill({ color: this.RUST_COLOR, alpha: 0.7 });
+      const x = (rust() - 0.5) * 10;
+      const y = torsoY + (rust() - 0.5) * 11;
+      graphics.circle(x, y, 0.8 + rust() * 1.5).fill({ color: this.RUST_COLOR, alpha: 0.7 });
     }
+    const oil = this.woundRandom(2);
     const oilCount = Math.floor((1 - healthPercent) * 3);
     for (let i = 0; i < oilCount; i++) {
-      const x = (Math.random() - 0.5) * 9;
-      const y = torsoY + (Math.random() - 0.5) * 10;
-      graphics.circle(x, y, 1 + Math.random() * 1.8).fill({ color: this.OIL_BLACK, alpha: 0.6 });
+      const x = (oil() - 0.5) * 9;
+      const y = torsoY + (oil() - 0.5) * 10;
+      graphics.circle(x, y, 1 + oil() * 1.8).fill({ color: this.OIL_BLACK, alpha: 0.6 });
     }
     if (healthPercent < 0.3) {
       graphics

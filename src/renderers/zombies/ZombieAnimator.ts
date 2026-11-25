@@ -1,23 +1,39 @@
 import type { LimbFlags } from '../../components/LimbState';
 import { footfallPulse, stepWave, wrapPhase } from '../../utils/WalkStagger';
-import type { JointPose } from './rig/jointPose';
+import { type JointPose, lerpPose } from './rig/jointPose';
 import { AnimationState } from './ZombieRenderer';
 
 export interface AnimationData {
+  /** Joint angles for the articulated rig (three-quarter view, facing +X). */
+  joints: JointPose;
+  /** Vertical dip of the whole body in px (positive = down). */
   bodyBob: number;
-  headTilt: number;
-  headSway: number;
-  leftArmAngle: number;
-  rightArmAngle: number;
-  leftLegOffset: number;
-  rightLegOffset: number;
-  limbSwing: number;
   /** Per-type personality twitches */
   twitch: number;
   /** Damage-reactive limp factor (0 = healthy, 1 = near death) */
   damageLevel: number;
-  /** Joint angles for the articulated rig (the fields above still drive the legacy part path). */
-  joints: JointPose;
+}
+
+/** Per-type gait personality. Angles in radians, see JointPose for the conventions. */
+export interface GaitStyle {
+  /** Hip swing amplitude: how far each leg reaches forward/back. Sets the stride length. */
+  legSwing: number;
+  /** Resting forward reach of the arms (zombie arms out in front). */
+  armReach: number;
+  /** How much the arms swing with the stride. */
+  armSwing: number;
+  /** Forward lean of the torso while walking (hunch). */
+  lean: number;
+  /** Vertical bob per foot plant (px). */
+  bob: number;
+  /** Head nod with the stride. */
+  headBob: number;
+  /** <1 = stompy plants (sharper step wave). */
+  stepSharpness: number;
+  /** Built-in limp on one side. */
+  limpBias: number;
+  /** Random personality twitches (0 = none, e.g. machines). */
+  twitch: number;
 }
 
 const ALL_LIMBS: LimbFlags = {
@@ -27,20 +43,182 @@ const ALL_LIMBS: LimbFlags = {
   rightLeg: true,
 };
 
+const TAU = Math.PI * 2;
+/** Stride cadence limits (cycles / s), so very slow or fast movers still read as walking. */
+const MIN_CADENCE = 0.35;
+const MAX_CADENCE = 4.5;
+/** How quickly the body falls into / gets up from the prone crawl (per second). */
+const PRONE_RATE = 2.5;
+
+const GAITS = {
+  BASIC: {
+    legSwing: 0.45,
+    armReach: 0.75,
+    armSwing: 0.15,
+    lean: 0.12,
+    bob: 1.2,
+    headBob: 0.12,
+    stepSharpness: 0.6,
+    limpBias: 0.15,
+    twitch: 1,
+  },
+  FAST: {
+    legSwing: 0.6,
+    armReach: 0.3,
+    armSwing: 0.55,
+    lean: 0.28,
+    bob: 1.0,
+    headBob: 0.06,
+    stepSharpness: 0.55,
+    limpBias: 0.05,
+    twitch: 0.6,
+  },
+  TANK: {
+    legSwing: 0.3,
+    armReach: 0.55,
+    armSwing: 0.12,
+    lean: 0.2,
+    bob: 2.2,
+    headBob: 0.05,
+    stepSharpness: 0.45,
+    limpBias: 0.2,
+    twitch: 0.6,
+  },
+  BOSS: {
+    legSwing: 0.28,
+    armReach: 0.5,
+    armSwing: 0.1,
+    lean: 0.18,
+    bob: 2.8,
+    headBob: 0.04,
+    stepSharpness: 0.4,
+    limpBias: 0.25,
+    twitch: 0.5,
+  },
+  NECRO_TANK: {
+    legSwing: 0.3,
+    armReach: 0.65,
+    armSwing: 0.12,
+    lean: 0.18,
+    bob: 2.5,
+    headBob: 0.045,
+    stepSharpness: 0.42,
+    limpBias: 0.22,
+    twitch: 0.5,
+  },
+  STEALTH: {
+    legSwing: 0.4,
+    armReach: 0.15,
+    armSwing: 0.2,
+    lean: 0.3,
+    bob: 0.5,
+    headBob: 0.12,
+    stepSharpness: 0.7,
+    limpBias: 0.1,
+    twitch: 0.8,
+  },
+  SWARM: {
+    legSwing: 0.5,
+    armReach: 0.6,
+    armSwing: 0.3,
+    lean: 0.22,
+    bob: 1.2,
+    headBob: 0.25,
+    stepSharpness: 0.5,
+    limpBias: 0.15,
+    twitch: 1.2,
+  },
+  ARMORED: {
+    legSwing: 0.32,
+    armReach: 0.5,
+    armSwing: 0.12,
+    lean: 0.08,
+    bob: 1.3,
+    headBob: 0.05,
+    stepSharpness: 0.5,
+    limpBias: 0.12,
+    twitch: 0.6,
+  },
+  MECHANICAL: {
+    legSwing: 0.35,
+    armReach: 0.2,
+    armSwing: 0.35,
+    lean: 0,
+    bob: 0.6,
+    headBob: 0.02,
+    stepSharpness: 0.85,
+    limpBias: 0,
+    twitch: 0,
+  },
+} satisfies Record<string, GaitStyle>;
+
+/** Gait personality for an animator type (falls back to BASIC). */
+export function getGaitStyle(zombieType: string): GaitStyle {
+  return (GAITS as Record<string, GaitStyle | undefined>)[zombieType] ?? GAITS.BASIC;
+}
+
+/**
+ * Distance the body travels per full stride cycle (two steps) for a leg of length `leg` swinging
+ * ±legSwing: each foot sweeps 2·leg·sin(swing) backwards while planted, twice per cycle.
+ * Matching the cadence to this keeps planted feet from sliding.
+ */
+export function strideLength(leg: number, legSwing: number): number {
+  return 4 * leg * Math.sin(legSwing);
+}
+
+/**
+ * Procedural pose generator for the zombie rig. Walk cadence follows the actual movement speed
+ * (slows, limb loss and rage all change it), and the crawl is blended in so a zombie visibly
+ * falls onto its front instead of snapping.
+ */
 export class ZombieAnimator {
   private currentState: AnimationState = AnimationState.WALK;
   private animationTime = 0;
-  private zombieType: string;
+  private gait: GaitStyle;
   private phaseOffset: number;
+  /** Stride phase (radians), advanced by cadence so speed changes never jump the pose. */
+  private stridePhase: number;
   private damageLevel = 0; // 0 = full health, 1 = near death
   private twitchTimer = 0;
   private twitchValue = 0;
   private limbs: LimbFlags = { ...ALL_LIMBS };
-  private isCrawling = false;
+  /** 0 = upright, 1 = fully prone; eases towards the crawl state. */
+  private proneBlend = 0;
+  private speed = 0;
+  private legLen = 7.5;
+  private armLen = 7;
 
   constructor(zombieType: string) {
-    this.zombieType = zombieType;
-    this.phaseOffset = Math.random() * Math.PI * 2;
+    this.gait = getGaitStyle(zombieType);
+    this.phaseOffset = Math.random() * TAU;
+    this.stridePhase = this.phaseOffset;
+  }
+
+  /** Limb lengths from the rig layout (px), used to match stride and pull length to speed. */
+  setLimbLengths(leg: number, arm: number): void {
+    this.legLen = Math.max(1, leg);
+    this.armLen = Math.max(1, arm);
+  }
+
+  /** Full stride cycles per second at the current speed. */
+  getCadence(): number {
+    if (this.speed <= 0) {
+      return 0;
+    }
+    const perCycle =
+      this.currentState === AnimationState.CRAWL
+        ? this.armLen * 1.6
+        : strideLength(this.legLen, this.gait.legSwing);
+    return Math.min(MAX_CADENCE, Math.max(MIN_CADENCE, this.speed / perCycle));
+  }
+
+  /** Reset per-life state for pool reuse. */
+  reset(): void {
+    this.proneBlend = 0;
+    this.damageLevel = 0;
+    this.twitchValue = 0;
+    this.limbs = { ...ALL_LIMBS };
+    this.currentState = AnimationState.WALK;
   }
 
   update(
@@ -51,19 +229,28 @@ export class ZombieAnimator {
       maxHealth?: number;
       isCrawling?: boolean;
       limbs?: LimbFlags;
+      /** Current movement speed (px/s). */
+      speed?: number;
     }
   ): void {
-    this.animationTime += deltaTime / 1000;
-    this.isCrawling = state.isCrawling === true;
+    const dt = deltaTime / 1000;
+    this.animationTime += dt;
     if (state.limbs) {
       this.limbs = state.limbs;
     }
+    this.speed = state.isMoving ? Math.max(0, state.speed ?? 25) : 0;
 
-    if (this.isCrawling) {
+    if (state.isCrawling === true) {
       this.currentState = AnimationState.CRAWL;
     } else {
       this.currentState = state.isMoving ? AnimationState.WALK : AnimationState.IDLE;
     }
+
+    const proneTarget = this.currentState === AnimationState.CRAWL ? 1 : 0;
+    const step = PRONE_RATE * dt;
+    this.proneBlend += Math.max(-step, Math.min(step, proneTarget - this.proneBlend));
+
+    this.stridePhase += TAU * this.getCadence() * dt;
 
     // Update damage level for damage-reactive animations
     if (state.health !== undefined && state.maxHealth !== undefined && state.maxHealth > 0) {
@@ -71,334 +258,161 @@ export class ZombieAnimator {
     }
 
     // Random twitches - more frequent when damaged
-    this.twitchTimer += deltaTime / 1000;
-    const twitchFrequency = 2 + this.damageLevel * 5; // More twitches when hurt
+    this.twitchTimer += dt;
+    const twitchFrequency = 2 + this.damageLevel * 5;
     if (this.twitchTimer > 1 / twitchFrequency && Math.random() > 0.7) {
-      this.twitchValue = (Math.random() - 0.5) * (0.5 + this.damageLevel);
+      this.twitchValue = (Math.random() - 0.5) * (0.5 + this.damageLevel) * this.gait.twitch;
       this.twitchTimer = 0;
     }
-    // Decay twitches
     this.twitchValue *= 0.9;
   }
 
   getCurrentFrame(): AnimationData {
-    const time = this.animationTime + this.phaseOffset;
+    const upright =
+      this.currentState === AnimationState.IDLE ||
+      (this.currentState === AnimationState.CRAWL && this.speed <= 0)
+        ? this.getIdleFrame(this.animationTime + this.phaseOffset)
+        : this.getWalkFrame(this.stridePhase);
 
-    if (this.currentState === AnimationState.CRAWL) {
-      return this.getCrawlFrame(time);
+    if (this.proneBlend <= 0) {
+      return upright;
     }
-    if (this.currentState === AnimationState.WALK) {
-      return this.getWalkFrame(time);
+    const crawl = this.getCrawlFrame(this.stridePhase);
+    if (this.proneBlend >= 1) {
+      return crawl;
     }
-    return this.getIdleFrame(time);
+    return {
+      ...crawl,
+      joints: lerpPose(upright.joints, crawl.joints, this.proneBlend),
+      bodyBob: upright.bodyBob + (crawl.bodyBob - upright.bodyBob) * this.proneBlend,
+    };
   }
 
-  private getWalkFrame(time: number): AnimationData {
-    const speed = this.getAnimationSpeed();
-    const gait = this.getGaitStyle();
+  private getWalkFrame(stridePhase: number): AnimationData {
+    const gait = this.gait;
+    const missingFar = !this.limbs.leftLeg;
+    const missingNear = !this.limbs.rightLeg;
+    const oneLegLimp = missingFar !== missingNear ? 0.55 : 0;
 
-    // Extra limp when one leg is missing
-    const missingLeftLeg = !this.limbs.leftLeg;
-    const missingRightLeg = !this.limbs.rightLeg;
-    const oneLegLimp = missingLeftLeg !== missingRightLeg ? 0.55 : 0;
-
-    // Stride phase — shaped step waves, not stacked sines
-    const stridePhase = time * 4 * speed;
+    // Step waves: +1 = leg fully forward. The limp stretches the dragged leg's phase
     const limpDrag = this.damageLevel * 0.55 + gait.limpBias + oneLegLimp;
-    const leftStep = missingLeftLeg
+    const farStep = missingFar
       ? 0
-      : stepWave(stridePhase, gait.stepSharpness, limpDrag + (missingRightLeg ? 0.3 : 0));
-    const rightStep = missingRightLeg
+      : stepWave(stridePhase, gait.stepSharpness, limpDrag + (missingNear ? 0.3 : 0));
+    const nearStep = missingNear
       ? 0
       : stepWave(stridePhase + Math.PI, gait.stepSharpness, -limpDrag * 0.35);
 
-    // Body dips on each foot plant (twice per stride), with a slight limp hitch
+    // Body dips on each foot plant (twice per stride), with a hitch on the limping side
     const plants = footfallPulse(stridePhase, gait.stepSharpness);
-    const limpHitch = leftStep > 0 ? limpDrag * plants * 1.2 : 0;
+    const limpHitch = farStep > 0 ? limpDrag * plants * 1.2 : 0;
     const oneLegHitch = oneLegLimp * plants * 2.5;
 
-    // Head follows the stride with a delayed, softer step (not an independent sine)
-    const headPhase = stridePhase * 0.5 - 0.4;
-    const headStep = stepWave(headPhase, 0.75, limpDrag * 0.4);
-
-    const leftArmSwing = this.limbs.leftArm
-      ? leftStep * (0.55 + gait.armSwing) + gait.armForwardReach + this.damageLevel * 0.2
-      : 0;
-    const rightArmSwing = this.limbs.rightArm
-      ? rightStep * (0.45 + gait.armSwing) + gait.armForwardReach
-      : 0;
-
-    // ---- Articulated rig joints ------------------------------------------------------------
-    // Legs alternate; the knee flexes through each leg's forward swing, so the foot visibly lifts
-    const hipAmp = 0.15 + 0.1 * gait.legStride;
-    const kneeAmp = 0.5 + 0.3 * gait.legStride;
-    const liftL = missingLeftLeg ? 0 : Math.max(0, Math.cos(wrapPhase(stridePhase))) ** 1.4;
-    const liftR = missingRightLeg
+    // The knee folds while the leg swings forward (the phase where the step wave rises)
+    const kneeAmp = 0.55 + gait.legSwing;
+    const liftFar = missingFar ? 0 : Math.max(0, Math.cos(wrapPhase(stridePhase))) ** 1.4;
+    const liftNear = missingNear
       ? 0
       : Math.max(0, Math.cos(wrapPhase(stridePhase + Math.PI))) ** 1.4;
 
-    // Arms counter-swing the opposite leg, hanging slightly out from the body with bent elbows
-    const armAmp = 0.12 + gait.armSwing * 0.55;
-    const armBase = 0.16 + gait.armForwardReach * 0.35;
-    const elbowBase = 0.45 + gait.armForwardReach * 0.5;
+    // Arms reach forward and swing against the opposite leg; the hurt side droops
+    const reach = gait.armReach;
+    const headStep = stepWave(stridePhase * 0.5 - 0.4, 0.75, limpDrag * 0.4);
 
-    const sway = leftStep - rightStep;
     const joints: JointPose = {
-      hipL: leftStep * hipAmp,
-      hipR: rightStep * hipAmp,
-      kneeL: 0.06 + liftL * kneeAmp,
-      kneeR: 0.06 + liftR * kneeAmp,
-      shoulderL: this.limbs.leftArm ? armBase + rightStep * armAmp + this.damageLevel * 0.1 : 0,
-      shoulderR: this.limbs.rightArm ? armBase + leftStep * armAmp : 0,
-      elbowL: elbowBase + Math.max(0, -rightStep) * 0.35,
-      elbowR: elbowBase + Math.max(0, -leftStep) * 0.35,
-      // Torso rolls with the stride and sags toward the dragged side when hurt
-      torsoLean: sway * 0.035 + limpDrag * 0.05,
-      pelvisSway: sway * 0.3,
-      // The head lags the torso: a delayed, softer wave plus damage twitches
-      headTilt: headStep * (0.08 + gait.headBobIntensity * 0.4) + this.twitchValue * 0.3,
-      headShift: headStep * 0.5 * gait.headSwayAmp + this.twitchValue * 0.3,
+      hipL: farStep * gait.legSwing,
+      hipR: nearStep * gait.legSwing,
+      kneeL: 0.08 + liftFar * kneeAmp,
+      kneeR: 0.08 + liftNear * kneeAmp,
+      shoulderL: this.limbs.leftArm
+        ? reach + nearStep * gait.armSwing - this.damageLevel * 0.15
+        : 0,
+      shoulderR: this.limbs.rightArm ? reach + farStep * gait.armSwing : 0,
+      elbowL: 0.25 + reach * 0.25 + Math.max(0, nearStep) * 0.25,
+      elbowR: 0.25 + reach * 0.25 + Math.max(0, farStep) * 0.25,
+      // Hunched forward; leans into each plant and more when hurt
+      torsoLean: gait.lean + plants * 0.03 + this.damageLevel * 0.08,
+      pelvisSway: (farStep - nearStep) * 0.25,
+      headTilt: headStep * gait.headBob + this.twitchValue * 0.3,
+      headShift: headStep * 0.4 + this.twitchValue * 0.3,
+      prone: 0,
     };
 
     return {
       joints,
-      bodyBob: plants * (2 + gait.bobIntensity) + limpHitch + oneLegHitch,
-      headTilt: headStep * (0.12 + gait.headBobIntensity) + this.twitchValue * 0.3,
-      headSway:
-        headStep * (1.2 + gait.headSwayAmp) +
-        rightStep * 0.35 * gait.headSwayAmp +
-        this.twitchValue * 0.8,
-      leftArmAngle: leftArmSwing,
-      rightArmAngle: rightArmSwing,
-      leftLegOffset: leftStep * (2.5 + gait.legStride) + limpHitch,
-      rightLegOffset: rightStep * (2.5 + gait.legStride) - limpHitch * 0.4,
-      limbSwing: leftStep || rightStep,
+      bodyBob: plants * gait.bob + limpHitch + oneLegHitch,
       twitch: this.twitchValue,
       damageLevel: this.damageLevel,
     };
   }
 
   /**
-   * Prone drag: torso low, arms pull body forward, legs tucked/still.
+   * Prone drag: the torso lies forward along the ground, the arms reach ahead and pull, and any
+   * remaining legs trail behind.
    */
-  private getCrawlFrame(time: number): AnimationData {
-    const speed = this.getAnimationSpeed() * 0.85;
-    const phase = time * 3.2 * speed;
+  private getCrawlFrame(phase: number): AnimationData {
     const pull = stepWave(phase, 0.5, 0.25);
     const opposite = stepWave(phase + Math.PI, 0.5, -0.15);
     const groundBob = footfallPulse(phase, 0.45);
 
-    const leftArm = this.limbs.leftArm ? pull * 0.9 + 0.85 : 0.4;
-    const rightArm = this.limbs.rightArm ? opposite * 0.9 + 0.85 : 0.4;
+    // Arms point ahead of the head (the torso is rotated ~75° forward, so the shoulder angle is
+    // large); each pull drags the hand back towards the chest
+    const armFar = this.limbs.leftArm ? 2.05 + pull * 0.45 : 0;
+    const armNear = this.limbs.rightArm ? 2.05 + opposite * 0.45 : 0;
 
-    // Legs tucked under when present (critical HP crawl); gone limbs stay at 0
-    const tuck = this.limbs.leftLeg || this.limbs.rightLeg ? 1.5 : 0;
-
-    // Prone drag: arms reach out and pull, legs trail tucked
     const joints: JointPose = {
-      hipL: this.limbs.leftLeg ? 0.1 : 0,
-      hipR: this.limbs.rightLeg ? 0.1 : 0,
-      kneeL: this.limbs.leftLeg ? 0.9 : 0,
-      kneeR: this.limbs.rightLeg ? 0.9 : 0,
-      shoulderL: this.limbs.leftArm ? 0.9 + pull * 0.45 : 0,
-      shoulderR: this.limbs.rightArm ? 0.9 + opposite * 0.45 : 0,
-      elbowL: 0.7 + Math.max(0, -pull) * 0.5,
-      elbowR: 0.7 + Math.max(0, -opposite) * 0.5,
-      torsoLean: (pull - opposite) * 0.05 + 0.12,
-      pelvisSway: (pull - opposite) * 0.4,
-      headTilt: pull * 0.12 + 0.2 + this.twitchValue * 0.2,
-      headShift: opposite * 0.5 + this.twitchValue * 0.3,
+      hipL: this.limbs.leftLeg ? -1.2 + opposite * 0.06 : 0,
+      hipR: this.limbs.rightLeg ? -1.25 + pull * 0.06 : 0,
+      kneeL: this.limbs.leftLeg ? 0.25 : 0,
+      kneeR: this.limbs.rightLeg ? 0.3 : 0,
+      shoulderL: armFar,
+      shoulderR: armNear,
+      elbowL: 0.2 + Math.max(0, -pull) * 0.8,
+      elbowR: 0.2 + Math.max(0, -opposite) * 0.8,
+      torsoLean: 1.3 + (pull - opposite) * 0.04,
+      pelvisSway: (pull - opposite) * 0.3,
+      // Head lifted to look ahead (counters most of the torso's rotation)
+      headTilt: -0.45 + pull * 0.08 + this.twitchValue * 0.2,
+      headShift: opposite * 0.3,
+      prone: 1,
     };
 
     return {
       joints,
-      bodyBob: 10 + groundBob * 1.5 + this.twitchValue * 0.4,
-      headTilt: pull * 0.15 + 0.25 + this.twitchValue * 0.2,
-      headSway: opposite * 1.2 + this.twitchValue * 0.5,
-      leftArmAngle: leftArm,
-      rightArmAngle: rightArm,
-      leftLegOffset: this.limbs.leftLeg ? tuck * 0.3 : 0,
-      rightLegOffset: this.limbs.rightLeg ? tuck * 0.3 : 0,
-      limbSwing: pull,
+      bodyBob: groundBob * 0.6 + this.twitchValue * 0.3,
       twitch: this.twitchValue,
       damageLevel: this.damageLevel,
     };
-  }
-
-  /**
-   * Get per-type gait personality parameters.
-   */
-  private getGaitStyle(): {
-    bobIntensity: number;
-    headBobIntensity: number;
-    headSwayAmp: number;
-    armSwing: number;
-    armForwardReach: number;
-    legStride: number;
-    stepSharpness: number;
-    limpBias: number;
-  } {
-    switch (this.zombieType) {
-      case 'FAST':
-        return {
-          bobIntensity: 0.5,
-          headBobIntensity: 0.1,
-          headSwayAmp: 0.3,
-          armSwing: 0.3,
-          armForwardReach: 0.1,
-          legStride: 1.5,
-          stepSharpness: 0.55,
-          limpBias: 0.05,
-        };
-      case 'TANK':
-        return {
-          bobIntensity: 1.5,
-          headBobIntensity: 0.05,
-          headSwayAmp: 0.8,
-          armSwing: 0.2,
-          armForwardReach: 0.4,
-          legStride: 0.5,
-          stepSharpness: 0.45,
-          limpBias: 0.2,
-        };
-      case 'BOSS':
-        return {
-          bobIntensity: 2.0,
-          headBobIntensity: 0.04,
-          headSwayAmp: 1.0,
-          armSwing: 0.15,
-          armForwardReach: 0.5,
-          legStride: 0.4,
-          stepSharpness: 0.4,
-          limpBias: 0.25,
-        };
-      case 'NECRO_TANK':
-        return {
-          bobIntensity: 1.8,
-          headBobIntensity: 0.045,
-          headSwayAmp: 0.9,
-          armSwing: 0.18,
-          armForwardReach: 0.45,
-          legStride: 0.45,
-          stepSharpness: 0.42,
-          limpBias: 0.22,
-        };
-      case 'STEALTH':
-        return {
-          bobIntensity: 0.3,
-          headBobIntensity: 0.15,
-          headSwayAmp: 0.2,
-          armSwing: 0.1,
-          armForwardReach: -0.1,
-          legStride: 0.8,
-          stepSharpness: 0.7,
-          limpBias: 0.1,
-        };
-      case 'SWARM':
-        return {
-          bobIntensity: 1.0,
-          headBobIntensity: 0.3,
-          headSwayAmp: 0.5,
-          armSwing: 0.5,
-          armForwardReach: 0.3,
-          legStride: 1.8,
-          stepSharpness: 0.5,
-          limpBias: 0.15,
-        };
-      case 'ARMORED':
-        return {
-          bobIntensity: 0.8,
-          headBobIntensity: 0.05,
-          headSwayAmp: 0.4,
-          armSwing: 0.15,
-          armForwardReach: 0.2,
-          legStride: 0.6,
-          stepSharpness: 0.5,
-          limpBias: 0.12,
-        };
-      case 'MECHANICAL':
-        return {
-          bobIntensity: 0.2,
-          headBobIntensity: 0.02,
-          headSwayAmp: 0.1,
-          armSwing: 0.1,
-          armForwardReach: 0.0,
-          legStride: 0.4,
-          stepSharpness: 0.85,
-          limpBias: 0,
-        };
-      default: // BASIC
-        return {
-          bobIntensity: 0.5,
-          headBobIntensity: 0.15,
-          headSwayAmp: 0.5,
-          armSwing: 0.2,
-          armForwardReach: 0.3,
-          legStride: 0.8,
-          stepSharpness: 0.6,
-          limpBias: 0.15,
-        };
-    }
-  }
-
-  private getAnimationSpeed(): number {
-    switch (this.zombieType) {
-      case 'FAST':
-        return 1.5;
-      case 'SWARM':
-        return 1.3;
-      case 'STEALTH':
-        return 1.2;
-      case 'TANK':
-        return 0.7;
-      case 'BOSS':
-        return 0.55;
-      case 'NECRO_TANK':
-        return 0.6;
-      default:
-        return 1.0;
-    }
   }
 
   private getIdleFrame(time: number): AnimationData {
-    // Idle can stay sine-based — breathing should feel smooth
+    // Idle can stay sine-based: breathing should feel smooth
     const breathe = Math.sin(time * 1.5);
     const twitch = Math.sin(time * 7.3) * 0.1;
-    const damagetwitch = this.damageLevel * Math.sin(time * 11.7) * 0.15;
+    const damageTwitch = this.damageLevel * Math.sin(time * 11.7) * 0.15;
+    const reach = this.gait.armReach * 0.6;
 
     const joints: JointPose = {
-      hipL: 0,
-      hipR: 0,
-      kneeL: 0.05,
-      kneeR: 0.05,
-      shoulderL: this.limbs.leftArm ? 0.18 + breathe * 0.04 + this.damageLevel * 0.1 : 0,
-      shoulderR: this.limbs.rightArm ? 0.16 + Math.sin(time * 1.5 + 0.7) * 0.04 : 0,
-      elbowL: 0.4 + breathe * 0.05,
-      elbowR: 0.4 + Math.sin(time * 1.5 + 0.7) * 0.05,
-      torsoLean: Math.sin(time * 0.9) * 0.015 + this.damageLevel * 0.03,
+      hipL: 0.04,
+      hipR: -0.04,
+      kneeL: 0.08,
+      kneeR: 0.08,
+      shoulderL: this.limbs.leftArm ? reach + breathe * 0.04 - this.damageLevel * 0.1 : 0,
+      shoulderR: this.limbs.rightArm ? reach + Math.sin(time * 1.5 + 0.7) * 0.04 : 0,
+      elbowL: 0.35 + breathe * 0.05,
+      elbowR: 0.35 + Math.sin(time * 1.5 + 0.7) * 0.05,
+      torsoLean: this.gait.lean * 0.6 + Math.sin(time * 0.9) * 0.015 + this.damageLevel * 0.05,
       pelvisSway: 0,
       headTilt: Math.sin(time * 1.2) * 0.06 + this.twitchValue * 0.3,
       headShift: Math.sin(time * 1.3) * 0.3 + this.twitchValue * 0.3,
+      prone: 0,
     };
 
     return {
       joints,
-      bodyBob: breathe * 0.8 + twitch + damagetwitch,
-      headTilt: Math.sin(time * 1.2) * 0.08 + twitch * 0.5 + this.twitchValue * 0.4,
-      headSway: Math.sin(time * 1.3) * 0.5 + Math.sin(time * 3.7) * 0.2 + this.twitchValue * 0.6,
-      leftArmAngle: this.limbs.leftArm
-        ? Math.sin(time * 1.8) * 0.15 + 0.2 + this.damageLevel * 0.3
-        : 0,
-      rightArmAngle: this.limbs.rightArm ? Math.sin(time * 1.8 + 0.7) * 0.12 + 0.15 : 0,
-      leftLegOffset: 0,
-      rightLegOffset: 0,
-      limbSwing: breathe * 0.1,
+      bodyBob: breathe * 0.8 + twitch + damageTwitch,
       twitch: this.twitchValue,
       damageLevel: this.damageLevel,
     };
-  }
-
-  setState(state: AnimationState): void {
-    this.currentState = state;
   }
 }

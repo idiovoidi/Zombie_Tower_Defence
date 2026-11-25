@@ -43,12 +43,13 @@ export class ArmoredZombieRenderer extends BaseZombieRenderer {
     this.headPart.rect(-4.5, -4.5, 9, 8).fill({ color: this.PRIMARY_COLOR, alpha: 0.92 });
     this.headPart.rect(-4.5, -4.5, 9, 8).stroke({ color: 0x000000, width: 1, alpha: 0.6 });
     this.headPart.rect(-4.5, -4.5, 9, 1.5).fill({ color: this.LIGHT_GRAY, alpha: 0.7 });
-    this.headPart.rect(-3, 2.5, 6, 1.5).fill({ color: this.ZOMBIE_GREEN, alpha: 0.9 });
-    this.headPart.rect(-3.5, -1, 7, 1.5).fill({ color: 0x000000, alpha: 0.9 });
-    GlowEffect.apply(this.headPart, -2, -0.5, 1.5, this.EYE_GLOW);
-    GlowEffect.apply(this.headPart, 2, -0.5, 1.5, this.EYE_GLOW);
-    this.headPart.circle(-2, -0.5, 0.6).fill(this.EYE_GLOW);
-    this.headPart.circle(2, -0.5, 0.6).fill(this.EYE_GLOW);
+    const f = rig.layout.faceX * 0.6;
+    this.headPart.rect(-2 + f, 2.5, 5.5 - f, 1.5).fill({ color: this.ZOMBIE_GREEN, alpha: 0.9 });
+    this.headPart.rect(-2.5 + f, -1, 7 - f, 1.5).fill({ color: 0x000000, alpha: 0.9 });
+    GlowEffect.apply(this.headPart, -0.8 + f, -0.5, 1.5, this.EYE_GLOW);
+    GlowEffect.apply(this.headPart, 2.6 + f * 0.4, -0.5, 1.1, this.EYE_GLOW);
+    this.headPart.circle(-0.8 + f, -0.5, 0.6).fill(this.EYE_GLOW);
+    this.headPart.circle(2.6 + f * 0.4, -0.5, 0.45).fill(this.EYE_GLOW);
 
     this.finishInitParts();
   }
@@ -135,11 +136,12 @@ export class ArmoredZombieRenderer extends BaseZombieRenderer {
   }
 
   private drawRust(graphics: Graphics, healthPercent: number, torsoY: number): void {
+    const rand = this.woundRandom(1);
     const rustCount = Math.floor((1 - healthPercent) * 4);
     for (let i = 0; i < rustCount; i++) {
-      const x = (Math.random() - 0.5) * 8;
-      const y = torsoY + (Math.random() - 0.5) * 10;
-      graphics.circle(x, y, 0.8 + Math.random() * 1.2).fill({ color: this.RUST_COLOR, alpha: 0.7 });
+      const x = (rand() - 0.5) * 8;
+      const y = torsoY + (rand() - 0.5) * 10;
+      graphics.circle(x, y, 0.8 + rand() * 1.2).fill({ color: this.RUST_COLOR, alpha: 0.7 });
     }
   }
 }

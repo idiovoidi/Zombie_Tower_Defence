@@ -1,5 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import type { LimbFlags, LimbId } from '../../components/LimbState';
+import { createSeededRandom } from '../../utils/seededRandom';
 import { multiplyTint } from '../lighting/zombieLighting';
 import { getFlashFilter } from './damageFlash';
 import { createHumanoidShadow, type HumanoidPartOptions } from './HumanoidPartBuilder';
@@ -13,8 +14,13 @@ import {
 import { RagdollGore } from './RagdollGore';
 import { RagdollSkeleton } from './RagdollSkeleton';
 import { applyHumanoidPose } from './rig/applyHumanoidPose';
-import { assembleHumanoidRig, createHumanoidRig, type HumanoidRigParts } from './rig/HumanoidRig';
-import { computeHumanoidRigLayout } from './rig/humanoidRigLayout';
+import {
+  assembleHumanoidRig,
+  createHumanoidRig,
+  type HumanoidRigParts,
+  type RigLimb,
+} from './rig/HumanoidRig';
+import { computeHumanoidRigLayout, legLength } from './rig/humanoidRigLayout';
 import { ZombieAnimator } from './ZombieAnimator';
 import { ParticleType, ZombieParticleSystem } from './ZombieParticleSystem';
 import type { IZombieRenderer, ZombieRenderState } from './ZombieRenderer';
@@ -87,6 +93,12 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
   /** Articulated skeleton shared by every zombie type (built in buildHumanoidParts). */
   protected rig!: HumanoidRigParts;
   protected lastHealthPercent = 1.0;
+  /** 1 = facing +X (the rig's authored direction), -1 = mirrored to face -X. */
+  private facing: 1 | -1 = 1;
+  /** False until a clear heading is seen, so a new zombie takes its first direction at once. */
+  private facingSet = false;
+  /** Per-life seed so wounds stay put and accumulate as health drops instead of jumping around. */
+  private woundSeed = Math.floor(Math.random() * 0x7fffffff);
 
   // Tint = body (health greying / phase colour) x status (burning) x light cast (fire, blasts, arcs).
   // Each layer has one owner, so no source overwrites another.
@@ -157,6 +169,7 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
       this.currentLimbs = state.limbs;
     }
 
+    this.updateFacing(state.direction);
     applyHumanoidPose(this.rig, anim.joints, anim.bodyBob);
     this.applyLimbVisibility(this.currentLimbs);
 
@@ -210,6 +223,7 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     const rig = createHumanoidRig(palette, layout);
 
     this.rig = rig;
+    this.animator.setLimbLengths(legLength(layout), layout.upperArmLen + layout.foreArmLen);
     this.shadowPart = createHumanoidShadow(groundY, shadow?.size ?? 8 * scale);
     // Parts that subclasses may still decorate (Stealth draws an aura on the head)
     this.torsoPart = rig.torso;
@@ -269,10 +283,37 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     if (!this.isInitialized) {
       return;
     }
-    this.rig.leftArm.root.visible = limbs.leftArm;
-    this.rig.rightArm.root.visible = limbs.rightArm;
-    this.rig.leftLeg.root.visible = limbs.leftLeg;
-    this.rig.rightLeg.root.visible = limbs.rightLeg;
+    const set = (limb: RigLimb, present: boolean) => {
+      limb.root.visible = present;
+      if (limb.stump) {
+        limb.stump.visible = !present;
+      }
+    };
+    set(this.rig.leftArm, limbs.leftArm);
+    set(this.rig.rightArm, limbs.rightArm);
+    set(this.rig.leftLeg, limbs.leftLeg);
+    set(this.rig.rightLeg, limbs.rightLeg);
+  }
+
+  /**
+   * Mirror the rig to face its direction of travel. Only a clear horizontal heading flips it,
+   * so vertical path segments and small wobbles keep the current facing (no flicker).
+   */
+  private updateFacing(direction: { x: number; y: number } | undefined): void {
+    const dx = direction?.x ?? 0;
+    const next = nextFacing(this.facing, dx, this.facingSet);
+    if (Math.abs(dx) > 0.05) {
+      this.facingSet = true;
+    }
+    if (next !== this.facing || this.rig.body.scale.x !== next) {
+      this.facing = next;
+      this.rig.body.scale.x = next;
+    }
+  }
+
+  /** Current facing: 1 = towards +X, -1 = towards -X. */
+  getFacing(): 1 | -1 {
+    return this.facing;
   }
 
   update(deltaTime: number, state: ZombieRenderState): void {
@@ -283,6 +324,7 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
       maxHealth: state.maxHealth,
       isCrawling: state.isCrawling,
       limbs: state.limbs,
+      speed: state.speed,
     });
     if (state.limbs) {
       this.currentLimbs = state.limbs;
@@ -406,25 +448,29 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
       size: 5,
     });
 
-    // Stump mark on wounds layer
-    if (this.isInitialized && this.woundsPart && !this.woundsPart.destroyed) {
-      this.woundsPart.circle(offset.x, offset.y, 2.5).fill({ color: 0x660000, alpha: 0.85 });
-      this.woundsPart.circle(offset.x, offset.y, 1.2).fill({ color: 0xaa0000, alpha: 0.7 });
-    }
+    // The stump itself is a rig part (shown by applyLimbVisibility), so it scales with the body
+    // and survives wound redraws
   }
 
+  /**
+   * Where the lost limb joined the body, in the renderer container's space (so particles burst
+   * from the shoulder/hip of this zombie's size and facing). "left" limbs are the far side.
+   */
   private getLimbGoreOffset(limb: LimbId): { x: number; y: number } {
+    if (!this.isInitialized) {
+      return { x: 0, y: 4 };
+    }
+    const l = this.rig.layout;
+    const shoulderY = l.hipY + l.shoulderY;
     switch (limb) {
       case 'leftArm':
-        return { x: -6, y: 2 };
+        return { x: l.shoulderFarX * this.facing, y: shoulderY };
       case 'rightArm':
-        return { x: 6, y: 2 };
+        return { x: l.shoulderNearX * this.facing, y: shoulderY };
       case 'leftLeg':
-        return { x: -3, y: 10 };
-      case 'rightLeg':
-        return { x: 3, y: 10 };
+        return { x: l.hipFarX * this.facing, y: l.hipY };
       default:
-        return { x: 0, y: 4 };
+        return { x: l.hipNearX * this.facing, y: l.hipY };
     }
   }
 
@@ -695,6 +741,9 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
     };
     this.lastHealthPercent = 1.0;
     this.applyLimbVisibility(this.currentLimbs);
+    this.animator.reset();
+    this.facingSet = false;
+    this.woundSeed = Math.floor(Math.random() * 0x7fffffff);
     if (this.isInitialized && this.woundsPart && !this.woundsPart.destroyed) {
       this.woundsPart.clear();
     }
@@ -817,11 +866,21 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
   ): void {
     graphics.clear();
     const woundCount = Math.floor((1 - healthPercent) * maxWounds);
+    // Same seed every redraw: wound i stays where it was, new ones are added as health drops
+    const rand = this.woundRandom();
     for (let i = 0; i < woundCount; i++) {
-      const x = (Math.random() - 0.5) * spreadX;
-      const y = torsoY + (Math.random() - 0.5) * spreadY;
-      graphics.circle(x, y, baseSize + Math.random() * sizeVar).fill({ color: woundColor, alpha });
+      const x = (rand() - 0.5) * spreadX;
+      const y = torsoY + (rand() - 0.5) * spreadY;
+      graphics.circle(x, y, baseSize + rand() * sizeVar).fill({ color: woundColor, alpha });
     }
+  }
+
+  /**
+   * Deterministic random source for this life's damage marks. Start a fresh one per redraw so
+   * marks keep their positions and accumulate instead of re-rolling.
+   */
+  protected woundRandom(salt = 0): () => number {
+    return createSeededRandom(this.woundSeed + salt * 7919);
   }
 
   /**
@@ -874,6 +933,25 @@ export abstract class BaseZombieRenderer implements IZombieRenderer {
       this.setTint(0xffffff);
     }
   }
+}
+
+/** Horizontal heading needed to turn around; below it the current facing is kept. */
+const FACING_FLIP_THRESHOLD = 0.3;
+
+/**
+ * Next facing for a heading's x component, with hysteresis: only a clear left/right heading
+ * turns the zombie, so near-vertical paths and wobbles don't flicker it. Before the first clear
+ * heading (`initialized` false) any horizontal component sets it.
+ */
+export function nextFacing(current: 1 | -1, dx: number, initialized: boolean): 1 | -1 {
+  const threshold = initialized ? FACING_FLIP_THRESHOLD : 0.05;
+  if (dx > threshold) {
+    return 1;
+  }
+  if (dx < -threshold) {
+    return -1;
+  }
+  return current;
 }
 
 /** Status tint while burning: warm orange, softened so the zombie's own colours still read. */

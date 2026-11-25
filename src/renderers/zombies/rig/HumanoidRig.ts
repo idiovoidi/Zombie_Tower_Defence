@@ -3,11 +3,13 @@ import { createHumanoidHead, type HumanoidPartOptions } from '../HumanoidPartBui
 import type { HumanoidRigLayout } from './humanoidRigLayout';
 
 /** One two-bone limb: `root` sits on the hip/shoulder; `joint` is the knee/elbow pivot. */
-interface RigLimb {
+export interface RigLimb {
   root: Container;
   upper: Graphics;
   joint: Container;
   lower: Graphics;
+  /** Raw stub shown on the hip/shoulder once the limb is lost. */
+  stump?: Graphics;
 }
 
 export interface HumanoidRigParts {
@@ -118,14 +120,15 @@ function createLeg(
     new Graphics().circle(0, 0, layout.shinW * 0.42).fill({ color: dark, alpha: 0.7 })
   );
 
-  // Boot: wider than the shin, with a toe cap
+  // Boot: longer than the shin is wide and pointing forward (+X), with a toe cap
   const s = layout.scale;
+  const toe = layout.thighW * 0.35;
   const foot = new Graphics();
-  foot.ellipse(0, layout.shinLen + 0.3 * s, layout.thighW * 0.78, 1.45 * s).fill({
+  foot.ellipse(toe, layout.shinLen + 0.3 * s, layout.thighW * 0.85, 1.45 * s).fill({
     color: 0x000000,
     alpha: 0.5,
   });
-  foot.ellipse(0, layout.shinLen + 0.2 * s, layout.thighW * 0.68, 1.2 * s).fill(dark);
+  foot.ellipse(toe, layout.shinLen + 0.2 * s, layout.thighW * 0.75, 1.2 * s).fill(dark);
   limb.joint.addChild(foot);
 
   if (decay > 0.2) {
@@ -190,8 +193,9 @@ function createArm(
 }
 
 /**
- * Torso in torso space (origin at the hips): tapered chest-to-pelvis silhouette, shoulder bumps,
- * a neck that runs up into the head, plus the old ribs/shreds/blotches detailing.
+ * Torso in torso space (origin at the hips), three-quarter view facing +X: tapered chest-to-pelvis
+ * silhouette, the turned-away side in shadow on the back (-X) half, ribs and belt across the
+ * front, and a neck that leans forward into the head.
  */
 function createTorsoGraphics(layout: HumanoidRigLayout, options: HumanoidPartOptions): Graphics {
   const { torsoW: W, torsoH: H, scale: s } = layout;
@@ -200,46 +204,59 @@ function createTorsoGraphics(layout: HumanoidRigLayout, options: HumanoidPartOpt
   const shoulderR = (options.bulky ? 2.9 : 2.3) * s;
   const dark = options.dark;
 
-  // Neck (drawn first so the torso overlaps its base)
+  // Neck (drawn first so the torso overlaps its base), slanting forward to the head
   const neckColor = mix(options.primary, dark, 0.4);
   const neckTop = layout.neckTopY + 0.6 * s;
-  g.rect(
-    -layout.neckW / 2 - OUTLINE_GROW,
-    neckTop,
-    layout.neckW + OUTLINE_GROW * 2,
-    layout.neckBaseY - neckTop + 1
-  ).fill(OUTLINE);
-  g.rect(-layout.neckW / 2, neckTop, layout.neckW, layout.neckBaseY - neckTop + 1).fill(neckColor);
+  const neck = (grow: number, style: { color: number; alpha?: number }) => {
+    const hw = layout.neckW / 2 + grow;
+    g.moveTo(-hw, layout.neckBaseY + 1)
+      .lineTo(hw, layout.neckBaseY + 1)
+      .lineTo(layout.headX + hw, neckTop)
+      .lineTo(layout.headX - hw, neckTop)
+      .fill(style);
+  };
+  neck(OUTLINE_GROW, OUTLINE);
+  neck(0, { color: neckColor });
 
+  // Back is straighter, chest bulges forward
   const outline = (grow: number, style: { color: number; alpha?: number }) => {
     const gw = W / 2 + grow;
     g.moveTo(-gw, -H + 1.4 * s - grow)
       .lineTo(-W * 0.3, -H - grow)
-      .lineTo(W * 0.3, -H - grow)
-      .lineTo(gw, -H + 1.4 * s - grow)
-      .lineTo(W * 0.5 + grow * 0.5, -H * 0.55)
-      .lineTo(W * 0.4 + grow, -H * 0.22)
+      .lineTo(W * 0.35, -H - grow)
+      .lineTo(gw + 0.4 * s, -H + 1.6 * s - grow)
+      .lineTo(W * 0.56 + grow * 0.5, -H * 0.55)
+      .lineTo(W * 0.42 + grow, -H * 0.22)
       .lineTo(W * 0.47 + grow, 1.2 * s + grow)
       .lineTo(-W * 0.47 - grow, 1.2 * s + grow)
-      .lineTo(-W * 0.4 - grow, -H * 0.22)
-      .lineTo(-W * 0.5 - grow * 0.5, -H * 0.55)
+      .lineTo(-W * 0.45 - grow, -H * 0.22)
+      .lineTo(-W * 0.5 - grow * 0.5, -H * 0.6)
       .fill(style);
-    g.circle(-layout.shoulderX, layout.shoulderY, shoulderR + grow).fill(style);
-    g.circle(layout.shoulderX, layout.shoulderY, shoulderR + grow).fill(style);
+    g.circle(layout.shoulderFarX, layout.shoulderY, shoulderR * 0.85 + grow).fill(style);
+    g.circle(layout.shoulderNearX, layout.shoulderY, shoulderR + grow).fill(style);
   };
   outline(OUTLINE_GROW, OUTLINE);
   outline(0, { color: options.primary });
 
-  // Ribs
+  // Turned-away side in shadow: a band down the back gives the torso depth
+  g.moveTo(-W * 0.5, -H * 0.6)
+    .lineTo(-W * 0.3, -H + 0.2 * s)
+    .lineTo(-W * 0.12, -H + 0.6 * s)
+    .lineTo(-W * 0.2, 1 * s)
+    .lineTo(-W * 0.47, 1 * s)
+    .lineTo(-W * 0.45, -H * 0.22)
+    .fill({ color: 0x000000, alpha: 0.22 });
+
+  // Ribs across the front of the chest
   const ribCount = options.bulky ? 4 : 3;
   for (let i = 0; i < ribCount; i++) {
     const ry = -H + (3.5 + i * 2.4) * s;
-    g.moveTo(-W * 0.3, ry)
-      .lineTo(W * 0.3, ry)
+    g.moveTo(-W * 0.05, ry)
+      .lineTo(W * 0.42, ry - 0.3 * s)
       .stroke({ color: dark, width: 0.6 * s, alpha: 0.7 });
   }
 
-  // Torn clothing
+  // Torn clothing: a flap off the back, a rip at the front
   if (decay > 0.3) {
     g.moveTo(-W / 2 + 1, -H * 0.4)
       .lineTo(-W / 2 - 1.6 * s, -H * 0.12)
@@ -253,26 +270,41 @@ function createTorsoGraphics(layout: HumanoidRigLayout, options: HumanoidPartOpt
 
   // Pale blotches (bulky / heavily decayed)
   if (options.bulky || decay > 0.6) {
-    g.ellipse(-W * 0.15, -H * 0.5, 2 * s, 1.5 * s).fill({ color: 0xc8c8a0, alpha: 0.25 });
-    g.ellipse(W * 0.2, -H * 0.35, 1.8 * s, 1.2 * s).fill({ color: 0xc8c8a0, alpha: 0.2 });
+    g.ellipse(W * 0.05, -H * 0.5, 2 * s, 1.5 * s).fill({ color: 0xc8c8a0, alpha: 0.25 });
+    g.ellipse(W * 0.28, -H * 0.32, 1.6 * s, 1.2 * s).fill({ color: 0xc8c8a0, alpha: 0.2 });
   }
 
   // Bone accent strip (Stealth)
   if (options.accent !== undefined) {
-    g.rect(-W * 0.15, -H * 0.85, W * 0.3, H * 0.15).fill({ color: options.accent, alpha: 0.55 });
+    g.rect(W * 0.02, -H * 0.85, W * 0.3, H * 0.15).fill({ color: options.accent, alpha: 0.55 });
   }
 
   // Belt line separating chest from pelvis
-  g.moveTo(-W * 0.4, -H * 0.1)
-    .lineTo(W * 0.4, -H * 0.1)
+  g.moveTo(-W * 0.42, -H * 0.1)
+    .lineTo(W * 0.44, -H * 0.12)
     .stroke({ color: dark, width: 0.8 * s, alpha: 0.55 });
 
   return g;
 }
 
 /**
+ * Ragged stump left where a limb was lost: a short stub of the limb with a raw, bloody end.
+ * Sits on the hip/shoulder beside the limb and is shown only once the limb is gone.
+ */
+function createStump(width: number, length: number, color: number, scale: number): Graphics {
+  const g = new Graphics();
+  drawSegment(g, length, width, width * 0.9, color, false);
+  const r = width * 0.5;
+  g.ellipse(0, length, r * 1.05, r * 0.7).fill(0x5a0606);
+  g.ellipse(0, length, r * 0.7, r * 0.45).fill(0x9a1010);
+  g.circle(r * 0.15, length - 0.1 * scale, r * 0.28).fill({ color: 0xe8dcc0, alpha: 0.9 });
+  g.visible = false;
+  return g;
+}
+
+/**
  * Build the articulated humanoid (not yet attached to a container: see assembleHumanoidRig).
- * Far-side limbs are drawn slightly darker so depth reads without transparency.
+ * Far-side limbs are drawn darker so depth reads without transparency.
  */
 export function createHumanoidRig(
   options: HumanoidPartOptions,
@@ -285,22 +317,29 @@ export function createHumanoidRig(
   // Pivot at the chin/neck so the head tilts about the neck instead of its own centre
   head.pivot.set(0, layout.headPivotDrop);
 
+  const s = layout.scale;
+  const withStump = (limb: RigLimb, width: number, length: number, shade: number): RigLimb => {
+    limb.stump = createStump(width, length, mix(options.primary, 0x000000, shade), s);
+    return limb;
+  };
+
   return {
     layout,
     body,
     torsoRoot,
     torso,
     head,
-    leftArm: createArm(layout, options, 0.2),
-    rightArm: createArm(layout, options, 0),
-    leftLeg: createLeg(layout, options, -1, 0.12),
-    rightLeg: createLeg(layout, options, 1, 0),
+    leftArm: withStump(createArm(layout, options, 0.25), layout.upperArmW, 2.2 * s, 0.25),
+    rightArm: withStump(createArm(layout, options, 0), layout.upperArmW, 2.2 * s, 0),
+    leftLeg: withStump(createLeg(layout, options, -1, 0.18), layout.thighW, 2.6 * s, 0.18),
+    rightLeg: withStump(createLeg(layout, options, 1, 0), layout.thighW, 2.6 * s, 0),
   };
 }
 
 /**
  * Wire the hierarchy and place the joints. The wounds layer is parented to the torso so damage
- * marks follow lean and bob.
+ * marks follow lean and bob. Stumps sit next to their limb (not inside it) so they stay visible
+ * when the limb is hidden.
  */
 export function assembleHumanoidRig(parts: HumanoidRigParts, wounds: Graphics): void {
   const { layout: l, body, torsoRoot } = parts;
@@ -308,25 +347,30 @@ export function assembleHumanoidRig(parts: HumanoidRigParts, wounds: Graphics): 
   body.removeChildren();
   torsoRoot.removeChildren();
 
-  parts.leftLeg.root.position.set(-l.hipX, l.hipY);
-  parts.rightLeg.root.position.set(l.hipX, l.hipY);
-  body.addChild(parts.leftLeg.root);
-  body.addChild(parts.rightLeg.root);
+  const place = (limb: RigLimb, parent: Container, x: number, y: number) => {
+    limb.root.position.set(x, y);
+    parent.addChild(limb.root);
+    if (limb.stump) {
+      limb.stump.position.set(x, y);
+      parent.addChild(limb.stump);
+    }
+  };
+
+  // Far leg first (behind), near leg in front
+  place(parts.leftLeg, body, l.hipFarX, l.hipY);
+  place(parts.rightLeg, body, l.hipNearX, l.hipY);
 
   torsoRoot.position.set(0, l.hipY);
   body.position.set(0, 0);
   // Wounds were authored around the torso centre
   wounds.position.set(0, -l.torsoH / 2);
-
-  parts.leftArm.root.position.set(-l.shoulderX, l.shoulderY);
-  parts.rightArm.root.position.set(l.shoulderX, l.shoulderY);
-  parts.head.position.set(0, l.neckTopY + 0.6 * l.scale);
+  parts.head.position.set(l.headX, l.neckTopY + 0.6 * l.scale);
 
   // Far arm behind the chest; near arm in front of it; head last
-  torsoRoot.addChild(parts.leftArm.root);
+  place(parts.leftArm, torsoRoot, l.shoulderFarX, l.shoulderY);
   torsoRoot.addChild(parts.torso);
   torsoRoot.addChild(wounds);
-  torsoRoot.addChild(parts.rightArm.root);
+  place(parts.rightArm, torsoRoot, l.shoulderNearX, l.shoulderY);
   torsoRoot.addChild(parts.head);
   body.addChild(torsoRoot);
 }
